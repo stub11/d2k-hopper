@@ -41,7 +41,9 @@ sudo ip netns exec "$NS" ip link set hnl-router up
 echo "== Start deterministic test service =="
 python3 -m http.server 18080 --bind 10.203.0.1 --directory "$ROOT" >/tmp/hopper-http-$$.log 2>&1 &
 SERVER_PID=$!
-for i in 1 2 3 4 5; do
+attempt=0
+while [ "$attempt" -lt 5 ]; do
+  attempt=$((attempt + 1))
   if curl --fail --silent --show-error --connect-timeout 1 http://10.203.0.1:18080/ >/dev/null 2>&1; then
     break
   fi
