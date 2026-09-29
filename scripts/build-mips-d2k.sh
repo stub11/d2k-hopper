@@ -2,7 +2,7 @@
 # Build only the actual Go CLI entry point for MT7621-class MIPS32 little-endian.
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 OUT_DIR=${1:-"$ROOT/dist/mips"}
 GO_BIN=${GO:-go}
 
