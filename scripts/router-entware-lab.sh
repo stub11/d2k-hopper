@@ -52,7 +52,9 @@ tar -tzf "$ARCHIVE" | grep -E '(^|/)opkg$' >/dev/null
 
 echo "== Reconstruct Entware /opt from the official archive =="
 mkdir -p "$MOUNT/opt"
-tar -xzf "$ARCHIVE" -C "$MOUNT/opt" --no-same-owner\n\necho "== Verify Keenetic-compatible Entware layout =="
+tar -xzf "$ARCHIVE" -C "$MOUNT/opt" --no-same-owner
+
+echo "== Verify Keenetic-compatible Entware layout =="
 [ -f "$MOUNT/opt/etc/opkg.conf" ]
 [ -d "$MOUNT/opt/etc/init.d" ]
 [ -d "$MOUNT/opt/var/opkg-lists" ] || mkdir -p "$MOUNT/opt/var/opkg-lists"
