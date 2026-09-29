@@ -2,17 +2,20 @@
 set -eu
 
 NS="hopper-lab-$$"
-ROOT="\${RUNNER_TEMP:-/tmp}/hopper-netlab-$$"
-QEMU="\${QEMU_MIPSEL:-qemu-mipsel-static}"
-GO="\${GO:-go}"
+ROOT="${RUNNER_TEMP:-/tmp}/hopper-netlab-$$"
+QEMU="${QEMU_MIPSEL:-qemu-mipsel-static}"
+GO="${GO:-go}"
 
 cleanup() {
-  if [ -n "\${D2K_PID:-}" ]; then kill "$D2K_PID" 2>/dev/null || true; wait "$D2K_PID" 2>/dev/null || true; fi
-  if [ -n "\${TLS_PID:-}" ]; then kill "$TLS_PID" 2>/dev/null || true; wait "$TLS_PID" 2>/dev/null || true; fi
-  if [ -n "\${UDP_PID:-}" ]; then kill "$UDP_PID" 2>/dev/null || true; wait "$UDP_PID" 2>/dev/null || true; fi
+  if [ -n "${D2K_PID:-}" ]; then kill "$D2K_PID" 2>/dev/null || true; wait "$D2K_PID" 2>/dev/null || true; fi
+  if [ -n "${TLS_PID:-}" ]; then kill "$TLS_PID" 2>/dev/null || true; wait "$TLS_PID" 2>/dev/null || true; fi
+  if [ -n "${UDP_PID:-}" ]; then kill "$UDP_PID" 2>/dev/null || true; wait "$UDP_PID" 2>/dev/null || true; fi
   ip netns del "$NS" 2>/dev/null || true
   rm -rf "$ROOT"
 }
+D2K_PID=""
+TLS_PID=""
+UDP_PID=""
 trap cleanup EXIT INT TERM
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
