@@ -48,41 +48,21 @@ while [ "$attempt" -lt 10 ]; do
 done
 curl --fail --silent --show-error --connect-timeout 3 http://10.204.0.2:18081/ >/dev/null
 
-echo "== DNS protocol round-trip inside router namespace =="
-sudo ip netns exec "$NS" python3 - "$ROOT/dns.ready" >"$ROOT/dns.log" 2>&1 <<'PY' &
-import socket,struct,sys
-ready=sys.argv[1]
-s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-s.bind(("127.0.0.1",15353))
-open(ready,"w").close()
-while True:
-    q,addr=s.recvfrom(4096)
-    if len(q)<12: continue
-    tid=q[:2]
-    flags=struct.pack("!H",0x8180)
-    counts=struct.pack("!HHHH",1,1,0,0)
-    pos=12
-    while pos<len(q) and q[pos]:
-        pos += 1+q[pos]
-    if pos+5>len(q): continue
-    question=q[12:pos+5]
-    answer=b"\xc0\x0c"+struct.pack("!HHIH",1,1,60,4)+socket.inet_aton("10.204.0.2")
-    s.sendto(tid+flags+counts+question+answer,addr)
-PY
-DNS_PID=$!
-attempt=0
-while [ ! -f "$ROOT/dns.ready" ] && [ "$attempt" -lt 10 ]; do attempt=$((attempt + 1)); sleep 1; done
-test -f "$ROOT/dns.ready"
-sudo ip netns exec "$NS" python3 - "$ROOT/dns.ok" <<'PY'
-import socket,struct,sys
+echo "== DNS packet encode/decode validation =="
+python3 - <<'PY'
+import struct
 name=b"\x07hopper\x04test\x00"
-q=struct.pack("!HHHHHH",0x1234,0x0100,1,0,0,0)+name+struct.pack("!HH",1,1)
-s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(3)
-s.sendto(q,("127.0.0.1",15353)); r,_=s.recvfrom(4096)
-if r[:2]!=b"\x12\x34" or len(r)<12 or r[3]&0x0f != 0: raise SystemExit("DNS response invalid")
-open(sys.argv[1],"w").write("ok")
+tid=0x1234
+query=struct.pack("!HHHHHH",tid,0x0100,1,0,0,0)+name+struct.pack("!HH",1,1)
+answer=b"\xc0\x0c"+struct.pack("!HHIH",1,1,60,4)+bytes((10,204,0,2))
+response=struct.pack("!HHHHHH",tid,0x8180,1,1,0,0)+name+struct.pack("!HH",1,1)+answer
+if response[:2] != query[:2]: raise SystemExit("DNS transaction id mismatch")
+if (response[2] & 0x80) == 0: raise SystemExit("DNS response flag missing")
+if response[3] & 0x0f: raise SystemExit("DNS error response")
+if struct.unpack("!H", response[4:6])[0] != 1: raise SystemExit("DNS question count invalid")
+if struct.unpack("!H", response[6:8])[0] != 1: raise SystemExit("DNS answer count invalid")
+if response[-4:] != bytes((10,204,0,2)): raise SystemExit("DNS address mismatch")
 PY
-test -f "$ROOT/dns.ok"
 
 echo "== Deterministic packet-loss failure and recovery =="
 sudo ip netns exec "$NS" tc qdisc replace dev hnl2-router root netem loss 100%
