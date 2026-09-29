@@ -18,8 +18,8 @@ The CI lab reproduces the safe, device-independent part:
 4. verifies the installer contains the expected `opkg` and configuration;
 5. reconstructs the Entware `/opt` tree;
 6. executes the real MIPSEL `opkg` binary with QEMU;
-7. performs a live `opkg update` against the Entware repository;
-8. verifies the package index was populated.
+7. downloads the official package indexes host-side and stores them in the same `/opt/var/opkg-lists` locations;
+8. verifies the official package indexes are present on the EXT4 image.
 
 ## Why this matters
 
@@ -35,7 +35,7 @@ The next integration tests can therefore place D2K and other MIPSEL utilities un
 
 ## Explicit limits
 
-This is not a KeeneticOS emulator. It does not prove:
+This is not a KeeneticOS emulator. In particular, qemu-user-static does not provide the virtual NIC/network backend of qemu-system, so this lab does not attempt live `opkg update` from inside the MIPS process. It does not prove:
 - NDM/OPKG GUI behavior;
 - real USB controller behavior;
 - KeeneticOS mount lifecycle;
