@@ -1,0 +1,29 @@
+name: Hopper 3810 Virtual Network Fault Lab
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-virtual-netlab-faults
+  cancel-in-progress: true
+
+jobs:
+  fault-matrix:
+    name: MIPS network fault and recovery matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install QEMU, MIPS toolchain and network test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mipsel-linux-gnu qemu-user-static curl iproute2 openssl
+      - name: Run isolated fault matrix
+        run: sudo sh scripts/router-netlab-faults.sh
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-netlab-faults.sh
