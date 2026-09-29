@@ -53,7 +53,18 @@ tar -tzf "$ARCHIVE" | grep -E '(^|/)opkg$' >/dev/null
 echo "== Reconstruct Entware /opt from the official archive =="
 mkdir -p "$MOUNT/opt"
 tar -xzf "$ARCHIVE" -C "$ROOT"
-TOP="$(tar -tzf "$ARCHIVE" | awk -F/ 'NF { print $1; exit }')"\n[ -n "$TOP" ] || {\n  echo "installer top-level entry not found" >&2\n  exit 1\n}\nTOP="$ROOT/$TOP"\n[ -d "$TOP" ] || {\n  echo "installer root directory not found: $TOP" >&2\n  exit 1\n}\ncp -a "$TOP"/. "$MOUNT/opt/"\n\necho "== Verify Keenetic-compatible Entware layout =="
+TOP="$(tar -tzf "$ARCHIVE" | awk -F/ 'NF { print $1; exit }')"
+[ -n "$TOP" ] || {
+  echo "installer top-level entry not found" >&2
+  exit 1
+}
+TOP="$ROOT/$TOP"
+[ -d "$TOP" ] || {
+  echo "installer root directory not found: $TOP" >&2
+  exit 1
+}
+cp -a "$TOP"/. "$MOUNT/opt/"
+echo "== Verify Keenetic-compatible Entware layout =="
 [ -f "$MOUNT/opt/etc/opkg.conf" ]
 [ -d "$MOUNT/opt/etc/init.d" ]
 [ -d "$MOUNT/opt/var/opkg-lists" ] || mkdir -p "$MOUNT/opt/var/opkg-lists"
