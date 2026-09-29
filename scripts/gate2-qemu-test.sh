@@ -25,7 +25,9 @@ for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf; d
 [ -x "$D2K_BIN" ] || { echo "missing built binary: $D2K_BIN" >&2; exit 1; }
 
 mkdir -p "$WORK" "$ROOTFS_MOUNT" "$OPT_MOUNT"
-curl --fail --silent --show-error --location --retry 3 -o "$BR_TAR" "$BR_URL"
+echo "[STEP] Download Buildroot..."
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 30 -o "$BR_TAR" "$BR_URL"
+echo "[STEP] Extract Buildroot..."
 tar -xf "$BR_TAR" -C "$WORK"
 BR=$(find "$WORK" -maxdepth 1 -type d -name 'buildroot-*' | head -n 1)
 [ -n "$BR" ]
@@ -35,11 +37,13 @@ make -j"$(nproc)"
 [ -s output/images/vmlinux ]
 [ -s output/images/rootfs.ext2 ]
 
-echo "== Prepare real EXT4 /opt with official Entware payload =="
+echo "[STEP] Prepare /opt image..."
 truncate -s 768M "$OPT_IMAGE"
 mkfs.ext4 -F -L HOPPEROPT "$OPT_IMAGE" >/dev/null
-sudo mount -o loop "$OPT_IMAGE" "$OPT_MOUNT"
-curl --fail --silent --show-error --location --retry 3 -o "$INSTALLER" \
+echo "[STEP] Mount /opt image..."
+timeout 30s sudo mount -o loop "$OPT_IMAGE" "$OPT_MOUNT"
+echo "[STEP] Download Entware installer..."
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 30 -o "$INSTALLER" \
   "https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.tar.gz"
 tar -xzf "$INSTALLER" -C "$OPT_MOUNT" --no-same-owner
 sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
@@ -47,7 +51,8 @@ sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
 sudo umount "$OPT_MOUNT"
 
 echo "== Inject Gate 2 boot test into Buildroot rootfs =="
-sudo mount -o loop "$BR/output/images/rootfs.ext2" "$ROOTFS_MOUNT"
+echo "[STEP] Mount rootfs image..."
+timeout 30s sudo mount -o loop "$BR/output/images/rootfs.ext2" "$ROOTFS_MOUNT"
 sudo mkdir -p "$ROOTFS_MOUNT/opt" "$ROOTFS_MOUNT/etc/init.d"
 sudo sh -c 'cat > "$1/etc/init.d/S99gate2-d2k"' sh "$ROOTFS_MOUNT" <<'EOF'
 #!/bin/sh
@@ -80,7 +85,7 @@ EOF
 sudo chmod 755 "$ROOTFS_MOUNT/etc/init.d/S99gate2-d2k"
 sudo umount "$ROOTFS_MOUNT"
 
-echo "== Boot QEMU Malta: CPU 24Kc, RAM 128M =="
+echo "[STEP] Launch QEMU..."
 rm -f "$LOG_OUT"
 set +e
 timeout 180s qemu-system-mipsel \
@@ -93,6 +98,7 @@ timeout 180s qemu-system-mipsel \
   2>&1 | tee "$LOG_OUT"
 QEMU_RC=$?
 set -e
+echo "[STEP] Analyze results..."
 cat "$LOG_OUT"
 grep -q 'GATE2_RESULT=SUCCESS' "$LOG_OUT" || { echo "Gate 2 failed (QEMU rc=$QEMU_RC)" >&2; exit 1; }
 if grep -qiE 'illegal instruction|reserved instruction|bus error|out of memory|oom-killer|killed process' "$LOG_OUT"; then
