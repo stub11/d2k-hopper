@@ -76,7 +76,16 @@ sudo mkdir -p "$MOUNT/etc"
 sudo cp /etc/resolv.conf "$MOUNT/etc/resolv.conf"
 sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg --version
 
-echo "== Refresh real Entware package indexes =="
+echo "== Prepare official Entware package indexes on isolated local HTTP =="
+REPO="$ROOT/repo"
+mkdir -p "$REPO/mipselsf-k3.4/keenetic"
+curl --fail --silent --show-error --location --retry 3 -o "$REPO/mipselsf-k3.4/Packages.gz" https://bin.entware.net/mipselsf-k3.4/Packages.gz
+curl --fail --silent --show-error --location --retry 3 -o "$REPO/mipselsf-k3.4/keenetic/Packages.gz" https://bin.entware.net/mipselsf-k3.4/keenetic/Packages.gz
+python3 -m http.server 18080 --bind 127.0.0.1 --directory "$REPO" >"$ROOT/repo-http.log" 2>&1 &
+REPO_PID=$!
+trap 'kill "$REPO_PID" 2>/dev/null || true' EXIT INT TERM
+sudo sed -i 's#http://bin.entware.net/mipselsf-k3.4#http://127.0.0.1:18080/mipselsf-k3.4#g' "$MOUNT/opt/etc/opkg.conf"
+echo "== Refresh MIPSEL Entware package indexes through isolated local HTTP =="
 sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg update
 echo "== Check package metadata =="
 test -s "$MOUNT/opt/var/opkg-lists/entware"
