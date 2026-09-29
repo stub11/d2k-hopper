@@ -3,31 +3,35 @@ set -eu
 
 latest="$(git rev-parse upstream/feat/telegram-tunnel)"
 state_file=".github/upstream-sync-state"
-state="$(tr -d '[:space:]' < "$state_file" 2>/dev/null || true)"
 
-if [ -z "$state" ]; then
-  state="$(git rev-parse upstream/feat/telegram-tunnel~1)"
-fi
+[ -f "$state_file" ] || { echo "Missing $state_file; refusing to guess the upstream baseline." >&2; exit 1; }
+state="$(tr -d '[:space:]' < "$state_file")"
+[ -n "$state" ] || { echo "Empty $state_file; refusing to guess the upstream baseline." >&2; exit 1; }
 
-if [ "$latest" = "$state" ]; then
-  echo "Upstream D2K unchanged at $latest"
-  exit 0
-fi
+[ "$latest" = "$state" ] && { echo "Upstream D2K unchanged at $latest"; exit 0; }
 
 echo "Upstream D2K changed: $state -> $latest"
 report="$(mktemp)"
 trap 'rm -f "$report"' EXIT
 sh scripts/upstream-diff-report.sh "$state" "$latest" > "$report"
-git log --reverse --format='%H %s' "$state..$latest"
 
-unhandled="$(git log --format='%H %s' "$state..$latest" | grep -v 'fix(mips): accept positive pipe success on MIPS' || true)"
+unhandled=""
+safe_count=0
+while IFS="$(printf '\t')" read -r commit subject; do
+  [ -n "$commit" ] || continue
+  case "$commit" in
+    d86d00b5dbab9066384422159712c5b74335937e) safe_count=$((safe_count + 1)) ;;
+    *) unhandled="${unhandled}${commit} ${subject}\n" ;;
+  esac
+done <<EOF
+$(git log --reverse --format='%H%x09%s' "$state..$latest")
+EOF
 
 if [ -n "$unhandled" ]; then
   title="Upstream D2K changes need Hopper adaptation: $latest"
   existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)"
-
   if [ -z "$existing" ]; then
-    gh issue create       --title "$title"       --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel
+    gh issue create --title "$title" --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel
 
 Latest revision: $latest
 Last acknowledged Hopper revision: $state
@@ -35,44 +39,46 @@ Last acknowledged Hopper revision: $state
 Unhandled changes:
 $unhandled
 
-Diff report:
-$(sed -n '1,220p' "$report")
+Subsystem mapping and full diff report:
+$(sed -n '1,320p' "$report")
 
-This sync is fail-closed. No unreviewed upstream code was copied and the acknowledged state was not advanced. Add a targeted adapter only after verifying Hopper compatibility and passing scripts/check.sh."
+This sync is fail-closed. No unreviewed upstream code was copied and the acknowledged state was not advanced.
+
+Known-safe upstream revisions are allowlisted by exact commit SHA, not by commit title. Add a new SHA only after verifying the concrete diff, Hopper compatibility, and scripts/check.sh."
   else
     echo "Open tracking issue already exists: #$existing"
   fi
-
   echo "Stopping: upstream contains unhandled changes."
   exit 1
 fi
 
 for commit in $(git log --format='%H' "$state..$latest"); do
-  subject="$(git show -s --format='%s' "$commit")"
-  case "$subject" in
-    'fix(mips): accept positive pipe success on MIPS'*)
-      sh scripts/upstream-adapt-mips-pipe.sh
-      ;;
+  case "$commit" in
+    d86d00b5dbab9066384422159712c5b74335937e) sh scripts/upstream-adapt-mips-pipe.sh ;;
   esac
 done
 
 sh scripts/check.sh
-
 git config user.name 'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+push_main() {
+  git fetch origin main
+  expected="$(git rev-parse origin/main)"
+  git push --force-with-lease="refs/heads/main:$expected" origin HEAD:main
+}
 
 if ! git diff --quiet; then
   git add -A
   git commit -m "sync(upstream): adapt D2K $latest for Hopper"
-  git push origin HEAD:main
+  push_main
 fi
 
 printf '%s\n' "$latest" > "$state_file"
 git add "$state_file"
-
 if ! git diff --cached --quiet; then
   git commit -m "chore(sync): record upstream D2K revision $latest"
-  git push origin HEAD:main
+  push_main
 fi
 
-echo "Upstream D2K sync complete at $latest"
+echo "Upstream D2K sync complete at $latest (safe revisions: $safe_count)"
