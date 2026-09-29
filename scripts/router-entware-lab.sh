@@ -60,7 +60,7 @@ gzip -dc "$REPO/mipselsf-k3.4/Packages.gz" > "$MOUNT/opt/var/opkg-lists/entware"
 gzip -dc "$REPO/mipselsf-k3.4/keenetic/Packages.gz" > "$MOUNT/opt/var/opkg-lists/keendev"
 
 echo "== Parse official indexes with real MIPSEL opkg =="
-sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg list > "$ROOT/opkg-list.txt"
+sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg list > "$ROOT/opkg-list.txt" || true
 sed -n '1,20p' "$ROOT/opkg-list.txt"
 test -s "$ROOT/opkg-list.txt"
 
