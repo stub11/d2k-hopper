@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build all architectures
+        run: sh scripts/build.sh
+
+      - name: Package release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp -a bin/. dist/
+          tar -C dist -czf d2k-hopper-${GITHUB_REF_NAME}.tar.gz .
+          (
+            cd dist
+            sha256sum d2k-hopper-${GITHUB_REF_NAME}.tar.gz > SHA256SUMS
+          )
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/d2k-hopper-${GITHUB_REF_NAME}.tar.gz" \
+            "dist/SHA256SUMS" \
+            --generate-notes \
+            --verify-tag
