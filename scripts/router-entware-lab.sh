@@ -65,5 +65,5 @@ test -s "$MOUNT/opt/var/opkg-lists/keendev"
 echo "Package indexes are present under /opt/var/opkg-lists"
 
 echo "HOPPER3810 ENTWARE/EXT4 LAB: GREEN"
-echo "Validated: EXT4 image, official MIPSEL installer, /opt, MIPSEL opkg, official package indexes and package parsing."
+echo "Validated: EXT4 image, official MIPSEL installer, /opt, MIPSEL opkg, and official package indexes stored on EXT4."
 echo "NOT VALIDATED: qemu-user process networking, KeeneticOS NDM/OPKG GUI, real USB controller, NFQUEUE, HWNAT/Wi-Fi."
