@@ -32,8 +32,11 @@ tar -xf "$BR_TAR" -C "$WORK"
 BR=$(find "$WORK" -maxdepth 1 -type d -name 'buildroot-*' | head -n 1)
 [ -n "$BR" ]
 cd "$BR"
-make qemu_mips32r2el_malta_defconfig
-make -j"$(nproc)"
+echo "[STEP] Configure Buildroot..."
+timeout 180s make qemu_mips32r2el_malta_defconfig
+echo "[STEP] Build Buildroot..."
+timeout 180s make -j"$(nproc)"
+echo "[STEP] Verify Buildroot images..."
 [ -s output/images/vmlinux ]
 [ -s output/images/rootfs.ext2 ]
 
@@ -50,6 +53,7 @@ sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
 [ -x "$OPT_MOUNT/bin/opkg" ]
 sudo umount "$OPT_MOUNT"
 
+echo "[STEP] Inject Gate 2 boot test..."
 echo "== Inject Gate 2 boot test into Buildroot rootfs =="
 echo "[STEP] Mount rootfs image..."
 timeout 30s sudo mount -o loop "$BR/output/images/rootfs.ext2" "$ROOTFS_MOUNT"
