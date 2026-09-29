@@ -53,7 +53,7 @@ sudo cp /etc/resolv.conf "$ROOTFS_MOUNT/etc/resolv.conf"
 sudo umount "$ROOTFS_MOUNT"
 echo "== Boot Malta with separate real EXT4 /opt disk =="
 set +e
-timeout 70s qemu-system-mipsel -M malta -m 256 -kernel output/images/vmlinux -drive file=output/images/rootfs.ext2,format=raw,if=ide,index=0 -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 -append "rootwait root=/dev/sda console=ttyS0" -net nic,model=pcnet -net user -nographic -no-reboot > "$QEMU_LOG" 2>&1
+timeout 90s qemu-system-mipsel -M malta -m 256 -kernel output/images/vmlinux -drive file=output/images/rootfs.ext2,format=raw,if=ide,index=0 -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 -append "rootwait root=/dev/sda console=ttyS0" -net nic,model=pcnet -net user -nographic -no-reboot > "$QEMU_LOG" 2>&1
 RC=$?
 set -e
 grep -q "Linux version" "$QEMU_LOG"
