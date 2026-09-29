@@ -84,7 +84,7 @@ curl --fail --silent --show-error --location --retry 3 -o "$REPO/mipselsf-k3.4/k
 HOST_IP="$(hostname -I | awk '{print $1}')"
 python3 -m http.server 18080 --bind "$HOST_IP" --directory "$REPO" >"$ROOT/repo-http.log" 2>&1 &
 REPO_PID=$!
-sudo sed -i 's#http://bin.entware.net/mipselsf-k3.4#http://$HOST_IP:18080/mipselsf-k3.4#g' "$MOUNT/opt/etc/opkg.conf"
+sudo sed -i "s#http://bin.entware.net/mipselsf-k3.4#http://$HOST_IP:18080/mipselsf-k3.4#g" "$MOUNT/opt/etc/opkg.conf"
 echo "== Refresh MIPSEL Entware package indexes through isolated local HTTP =="
 sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg update
 echo "== Check package metadata =="
