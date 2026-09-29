@@ -1,0 +1,31 @@
+name: Hopper 3810 MIPS System Lab
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-mips-system-lab
+  cancel-in-progress: true
+
+jobs:
+  mips-system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install MIPS system emulator and Buildroot dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-mips build-essential rsync cpio unzip bc libncurses-dev python3
+      - name: Run MIPS system lab
+        run: sh scripts/router-mips-system-lab.sh
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-mips-system-lab.sh
