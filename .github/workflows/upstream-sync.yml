@@ -2,7 +2,6 @@ name: Upstream D2K Sync
 
 on:
   schedule:
-    # Hourly; minute 13 avoids the top-of-hour Actions load spike.
     - cron: '13 * * * *'
   workflow_dispatch:
 
@@ -47,7 +46,7 @@ jobs:
             exit 0
           fi
           echo 'changed=true' >> "$GITHUB_OUTPUT"
-          git log --reverse --oneline "$state..upstream/feat/telegram-tunnel"
+          git log --oneline "$state..upstream/feat/telegram-tunnel"
 
       - name: Classify upstream changes
         id: classify
@@ -57,45 +56,27 @@ jobs:
           set -euo pipefail
           state="${{ steps.detect.outputs.state }}"
           latest="${{ steps.detect.outputs.latest }}"
-          unhandled=""
-          while read -r commit subject; do
-            case "$subject" in
-              'fix(mips): accept positive pipe success on MIPS'*)
-                echo "SAFE: $commit $subject"
-                ;;
-              *)
-                echo "UNHANDLED: $commit $subject"
-                unhandled+="$commit $subject"$'\n'
-                ;;
-            esac
-          done < <(git log --reverse --format='%H %s' "$state..$latest")
-
-          if [[ -z "$unhandled" ]]; then
-            echo 'has_unhandled=false' >> "$GITHUB_OUTPUT"
-          else
+          unhandled="$(git log --format='%H %s' "$state..$latest" | grep -v 'fix(mips): accept positive pipe success on MIPS' || true)"
+          if [[ -n "$unhandled" ]]; then
             echo 'has_unhandled=true' >> "$GITHUB_OUTPUT"
-            {
-              echo 'unhandled<<EOF'
-              printf '%s' "$unhandled"
-              echo
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$unhandled"
+          else
+            echo 'has_unhandled=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Apply known-safe adapters
+      - name: Apply known-safe MIPS pipe ABI adaptation
         if: steps.detect.outputs.changed == 'true' && steps.classify.outputs.has_unhandled == 'false'
         shell: bash
         run: |
           set -euo pipefail
-          state="${{ steps.detect.outputs.state }}"
-          latest="${{ steps.detect.outputs.latest }}"
-          while read -r commit subject; do
+          for commit in $(git log --format='%H' "${{ steps.detect.outputs.state }}..${{ steps.detect.outputs.latest }}"); do
+            subject="$(git show -s --format='%s' "$commit")"
             case "$subject" in
               'fix(mips): accept positive pipe success on MIPS'*)
                 sh scripts/upstream-adapt-mips-pipe.sh
                 ;;
             esac
-          done < <(git log --reverse --format='%H %s' "$state..$latest")
+          done
 
       - name: Verify adapted tree
         if: steps.detect.outputs.changed == 'true' && steps.classify.outputs.has_unhandled == 'false'
@@ -109,13 +90,11 @@ jobs:
           latest="${{ steps.detect.outputs.latest }}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
           if ! git diff --quiet; then
             git add -A
             git commit -m "sync(upstream): adapt D2K $latest for Hopper"
             git push origin HEAD:main
           fi
-
           printf '%s\n' "$latest" > .github/upstream-sync-state
           git add .github/upstream-sync-state
           if ! git diff --cached --quiet; then
@@ -134,14 +113,11 @@ jobs:
           state="${{ steps.detect.outputs.state }}"
           title="Upstream D2K changes need Hopper adaptation: $latest"
           existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)"
-
           if [[ -n "$existing" ]]; then
             echo "Open tracking issue already exists: #$existing"
             exit 0
           fi
-
-          unhandled="$(git log --reverse --format='%H %s' "$state..$latest" | grep -v '^.* fix(mips): accept positive pipe success on MIPS' || true)"
-
+          unhandled="$(git log --format='%H %s' "$state..$latest" | grep -v 'fix(mips): accept positive pipe success on MIPS' || true)"
           gh issue create             --title "$title"             --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel
 
 Latest revision: $latest
@@ -150,11 +126,10 @@ Last acknowledged Hopper revision: $state
 Unhandled changes:
 $unhandled
 
-The sync is fail-closed. Hopper will not advance the acknowledged upstream state or copy unreviewed code into main until a targeted adapter is added and scripts/check.sh passes."
+No unreviewed upstream code was copied and the acknowledged state was intentionally not advanced. Add a targeted adapter only after verifying Hopper compatibility and passing scripts/check.sh."
 
-      - name: Stop until an adapter exists
+      - name: Fail closed
         if: steps.detect.outputs.changed == 'true' && steps.classify.outputs.has_unhandled == 'true'
         run: |
-          echo "Upstream changed but at least one commit has no verified Hopper adapter."
-          echo "No upstream state was advanced."
+          echo "Upstream changes require a verified Hopper adapter."
           exit 1
