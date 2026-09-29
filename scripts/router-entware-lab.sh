@@ -68,13 +68,13 @@ OPKG="$MOUNT/opt/bin/opkg"
   exit 1
 }
 
-echo "== Execute real MIPSEL opkg under QEMU =="
-"$QEMU" -L "$MOUNT/opt" "$OPKG" --version
+echo "== Execute real MIPSEL opkg in an EXT4 chroot under QEMU =="
+sudo cp "$QEMU" "$MOUNT/qemu-mipsel-static"
+sudo cp /etc/resolv.conf "$MOUNT/etc/resolv.conf"
+sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg --version
 
 echo "== Refresh real Entware package indexes =="
-HOME="$MOUNT/opt/root" PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin" \
-  "$QEMU" -L "$MOUNT/opt" "$OPKG" update
-
+sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg update
 echo "== Check package metadata =="
 test -s "$MOUNT/opt/var/opkg-lists/entware"
 
