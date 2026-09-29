@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build-and-test-mips:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -29,6 +29,15 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             qemu-system-mips e2fsprogs build-essential rsync cpio unzip bc \
             libncurses-dev python3 binutils-mips-linux-gnu file shellcheck
+      - name: Cache Buildroot downloads and ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            buildroot/dl
+            ~/.ccache
+          key: buildroot-mips-${{ hashFiles('**/defconfig', '.config') }}
+          restore-keys: |
+            buildroot-mips-
       - name: Build D2K for MIPS softfloat
         run: sh scripts/build-mips-d2k.sh
       - name: Run Gate 2 VM
