@@ -41,6 +41,7 @@ jobs:
       - name: Build D2K for MIPS softfloat
         run: sh scripts/build-mips-d2k.sh
       - name: Run Gate 2 VM
+        timeout-minutes: 5
         run: sudo sh scripts/gate2-qemu-test.sh
       - name: ShellCheck
         if: always()
