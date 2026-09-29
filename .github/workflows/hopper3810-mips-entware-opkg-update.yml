@@ -1,0 +1,28 @@
+name: Hopper 3810 MIPS Entware opkg update lab
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-mips-entware-opkg-update
+  cancel-in-progress: true
+
+jobs:
+  mips-entware-opkg-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install QEMU system emulator and filesystem tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-mips e2fsprogs build-essential rsync cpio unzip bc libncurses-dev python3
+      - name: Run MIPS Entware network + opkg update lab
+        run: sudo sh scripts/router-mips-entware-opkg-update-lab.sh
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-mips-entware-opkg-update-lab.sh
