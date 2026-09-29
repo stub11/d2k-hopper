@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2024
 set -eu
 
 NS="hopper-lab-$$"
