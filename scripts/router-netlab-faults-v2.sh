@@ -73,6 +73,8 @@ DNS_PID=$!
 attempt=0
 while [ ! -f "$ROOT/dns.ready" ] && [ "$attempt" -lt 10 ]; do attempt=$((attempt + 1)); sleep 1; done
 test -f "$ROOT/dns.ready"
+sudo ip netns exec "$NS" ip addr show hnl2-router
+sudo ip netns exec "$NS" ss -lun || true
 python3 - "$ROOT/dns.ok" <<'PY'
 import socket,struct,sys
 name=b"\x07hopper\x04test\x00"
