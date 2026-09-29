@@ -59,6 +59,7 @@ echo "== Verify Keenetic-compatible Entware layout =="
 [ -f "$MOUNT/opt/etc/opkg.conf" ]
 [ -d "$MOUNT/opt/etc/init.d" ]
 [ -d "$MOUNT/opt/var/opkg-lists" ] || mkdir -p "$MOUNT/opt/var/opkg-lists"
+sudo mkdir -p "$MOUNT/opt/tmp"
 
 grep -Eq 'mipselsf-k3\.4' "$MOUNT/opt/etc/opkg.conf"
 
