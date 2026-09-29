@@ -1,0 +1,32 @@
+name: Hopper 3810 Virtual Network Lab
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-virtual-netlab
+  cancel-in-progress: true
+
+jobs:
+  isolated-network:
+    name: Isolated MIPS network namespace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install QEMU, MIPS toolchain and network test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mipsel-linux-gnu qemu-user-static curl iproute2
+
+      - name: Run isolated network lab
+        run: sudo sh scripts/router-netlab.sh
+
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-netlab.sh
