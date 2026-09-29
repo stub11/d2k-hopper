@@ -7,7 +7,7 @@ case "$path" in
   .github/*)
     category="automation"; risk="high"
     ;;
-  *mips*|*mipsel*|*mips64*)
+  *mips*)
     category="mips-portability"; risk="high"
     ;;
   *sched*|*datapath*|*packet*|*conntrack*)
