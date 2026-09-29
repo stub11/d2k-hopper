@@ -51,6 +51,7 @@ curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --ma
 tar -xzf "$INSTALLER" -C "$OPT_MOUNT" --no-same-owner
 sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
 [ -x "$OPT_MOUNT/bin/opkg" ]
+echo "[STEP] Unmount /opt image..."
 sudo umount "$OPT_MOUNT"
 
 echo "[STEP] Inject Gate 2 boot test..."
@@ -87,11 +88,13 @@ sync
 echo 1 > /proc/sys/kernel/sysrq && echo o > /proc/sysrq-trigger || poweroff -f || halt -f
 EOF
 sudo chmod 755 "$ROOTFS_MOUNT/etc/init.d/S99gate2-d2k"
+echo "[STEP] Unmount rootfs image..."
 sudo umount "$ROOTFS_MOUNT"
 
 echo "[STEP] Launch QEMU..."
 rm -f "$LOG_OUT"
 set +e
+echo "[STEP] QEMU timeout: 180s"
 timeout 180s qemu-system-mipsel \
   -M malta -cpu 24Kc -m 128M \
   -kernel "$BR/output/images/vmlinux" \
