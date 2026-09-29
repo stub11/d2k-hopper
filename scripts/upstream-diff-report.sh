@@ -20,20 +20,19 @@ echo "=== CHANGED FILES ==="
 git diff --name-status "$state..$latest"
 echo
 
-echo "=== HOPPER OVERLAP ==="
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-git diff --name-only "$state..$latest" > "$tmp"
-
+echo "=== HOPPER OVERLAP / SUBSYSTEM MAP ==="
+git diff --name-only "$state..$latest" |
 while IFS= read -r path; do
   [ -n "$path" ] || continue
   if [ -e "$path" ]; then
-    printf 'OVERLAP: %s\n' "$path"
+    overlap="OVERLAP"
   else
-    printf 'UPSTREAM-ONLY: %s\n' "$path"
+    overlap="UPSTREAM-ONLY"
   fi
-done < "$tmp"
-
+  classification="$(sh scripts/upstream-classify.sh "$path")"
+  printf '%s\t%s\n' "$overlap" "$classification"
+done
 echo
+
 echo "=== DIFF ==="
 git diff --no-ext-diff --unified=3 "$state..$latest"
