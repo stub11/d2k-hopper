@@ -63,7 +63,7 @@ for t in datapath/test_plan_parse datapath/test_plan_apply datapath/test_tls \
 done
 
 echo "== MIPS d2kd smoke: только CLI parser =="
-"$CC" -std=c99 -O2 -Wall -Wextra -Werror -Iinclude -static \
+"$CC" -std=c99 -O2 -Wall -Wextra -Werror -Idatapath/include -static \
     -o "$ROOT/bin/d2kd" \
     datapath/d2kd.c datapath/nfq.c datapath/raw.c datapath/plan_parse.c \
     datapath/plan_apply.c datapath/tls.c datapath/wire.c datapath/track.c \
