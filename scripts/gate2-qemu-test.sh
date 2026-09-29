@@ -42,9 +42,8 @@ sudo mount -o loop "$OPT_IMAGE" "$OPT_MOUNT"
 curl --fail --silent --show-error --location --retry 3 -o "$INSTALLER" \
   "https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.tar.gz"
 tar -xzf "$INSTALLER" -C "$OPT_MOUNT" --no-same-owner
-sudo mkdir -p "$OPT_MOUNT/opt/bin"
-sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/opt/bin/d2k"
-[ -x "$OPT_MOUNT/opt/bin/opkg" ]
+sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
+[ -x "$OPT_MOUNT/bin/opkg" ]
 sudo umount "$OPT_MOUNT"
 
 echo "== Inject Gate 2 boot test into Buildroot rootfs =="
