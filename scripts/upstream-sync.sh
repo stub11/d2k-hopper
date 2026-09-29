@@ -15,6 +15,7 @@ if [ "$latest" = "$state" ]; then
 fi
 
 echo "Upstream D2K changed: $state -> $latest"
+sh scripts/upstream-diff-report.sh "$state" "$latest" > upstream-diff-report.txt
 git log --reverse --format='%H %s' "$state..$latest"
 
 unhandled="$(git log --format='%H %s' "$state..$latest" | grep -v 'fix(mips): accept positive pipe success on MIPS' || true)"
@@ -31,6 +32,9 @@ Last acknowledged Hopper revision: $state
 
 Unhandled changes:
 $unhandled
+
+Diff report:
+$(sed -n '1,220p' upstream-diff-report.txt)
 
 This sync is fail-closed. No unreviewed upstream code was copied and the acknowledged state was not advanced. Add a targeted adapter only after verifying Hopper compatibility and passing scripts/check.sh."
   else
