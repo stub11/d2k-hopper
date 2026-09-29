@@ -44,6 +44,8 @@ jobs:
       - name: Fail closed on unhandled upstream changes
         if: steps.detect.outputs.changed == 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           state="${{ steps.detect.outputs.state }}"
