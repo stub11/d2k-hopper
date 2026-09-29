@@ -1,8 +1,50 @@
-# D2K для Hopper 3810 — Руководство
+# D2K для Hopper 3810 — руководство
 
-## Быстрая установка через SSH в Entware
-```bash
-(f=$(mktemp) && curl -fsSL --connect-timeout 10 --max-time 120 \
-  https://raw.githubusercontent.com/stub11/d2k-hopper/main/scripts/install.sh \
-  -o "$f" && sh "$f"; r=$?; rm -f "$f"; exit "$r")
+## Что проверено
+
+Репозиторий содержит Go-контур d2k и C-датапат d2kd. Профиль Hopper 3810 в этом каталоге является конфигурационным дополнением; наличие строки в конфиге не означает, что функция поддерживается конкретной прошивкой.
+
+## Проверка без изменений
+
+Сначала выполните на роутере:
+
+```sh
+sh scripts/hopper-detect.sh --dry-run
+sh scripts/cloudflare-doh.sh --dry-run
 ```
+
+`hopper-detect.sh` только читает модель, архитектуру и RAM.
+
+`cloudflare-doh.sh --dry-run` только показывает текущее состояние DNS-proxy и команды, которые были бы выполнены. Изменений не делает.
+
+## Включение Cloudflare DoH
+
+Перед применением сохраните вывод dry-run и убедитесь, что версия прошивки поддерживает команду `dns-proxy https upstream`. Официальный справочник Keenetic документирует DNS-over-HTTPS upstream через эту команду.
+
+После этого:
+
+```sh
+sh scripts/cloudflare-doh.sh --apply
+ndmc -c 'show dns-proxy'
+```
+
+Скрипт перед изменением сохраняет состояние DNS-proxy в `/opt/var/backups/d2k/dns-proxy-before-doh.txt` и не отключает существующие DNS-upstream.
+
+## Откат
+
+Если endpoint Cloudflare был добавлен именно этим скриптом:
+
+```sh
+sh scripts/cloudflare-doh.sh --rollback
+ndmc -c 'show dns-proxy'
+```
+
+Если endpoint уже существовал до запуска скрипта, rollback его не удаляет.
+
+## Ограничения
+
+- Реальный запуск на Keenetic Hopper в рамках этого аудита не выполнялся.
+- Команда `ndmc` и точное поведение DNS-proxy зависят от версии KeeneticOS; проверяйте их на целевой прошивке.
+- Скрипт намеренно не загружает и не запускает удалённый код.
+- Не храните пароли, токены или другие секреты в репозитории.
+
