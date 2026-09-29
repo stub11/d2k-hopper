@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2024
 set -eu
 NS="hopper-lab-v2-$$"
 ROOT="${RUNNER_TEMP:-/tmp}/hopper-netlab-v2-$$"
