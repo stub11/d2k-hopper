@@ -33,6 +33,7 @@ need truncate
 need mkfs.ext4
 need mount
 need "$QEMU"
+QEMU_BIN="$(command -v "$QEMU")"
 
 mkdir -p "$MOUNT"
 truncate -s 512M "$IMAGE"
@@ -69,7 +70,7 @@ OPKG="$MOUNT/opt/bin/opkg"
 }
 
 echo "== Execute real MIPSEL opkg in an EXT4 chroot under QEMU =="
-sudo cp "$QEMU" "$MOUNT/qemu-mipsel-static"
+sudo cp "$QEMU_BIN" "$MOUNT/qemu-mipsel-static"
 sudo cp /etc/resolv.conf "$MOUNT/etc/resolv.conf"
 sudo chroot "$MOUNT" /qemu-mipsel-static /opt/bin/opkg --version
 
