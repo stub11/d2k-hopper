@@ -1,0 +1,33 @@
+name: Project backup archive
+
+on:
+  push:
+    branches:
+      - backup/d2k-hopper-2026-09-29
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create backup archive
+        run: |
+          set -eu
+          rm -rf .git
+          tar -czf d2k-hopper-backup-2026-09-29.tar.gz .
+          sha256sum d2k-hopper-backup-2026-09-29.tar.gz | tee d2k-hopper-backup-2026-09-29.sha256
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2k-hopper-backup-2026-09-29
+          path: |
+            d2k-hopper-backup-2026-09-29.tar.gz
+            d2k-hopper-backup-2026-09-29.sha256
+          retention-days: 90
