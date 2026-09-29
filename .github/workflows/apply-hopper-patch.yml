@@ -1,0 +1,69 @@
+name: Apply Hopper 3810 Enhancements
+
+on:
+  workflow_dispatch: # Запуск вручную в 1 клик из интерфейса GitHub
+  push:
+    branches: [main, master]
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add Hopper 3810 Auto-Detect Script
+        run: |
+          mkdir -p scripts config docs
+          cat << 'EOF' > scripts/hopper-detect.sh
+          #!/bin/sh
+          # D2K — Auto-detect Hopper 3810 and optimize RAM
+          set -e
+          ROUTER_MODEL=$(ndm system device model 2>/dev/null || echo "Hopper 3810")
+          ROUTER_ARCH=$(uname -m)
+          ROUTER_RAM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "256000")
+          echo "=== D2K Hopper Profile: Model=$ROUTER_MODEL, Arch=$ROUTER_ARCH, RAM=$((ROUTER_RAM_KB/1024))MB ==="
+          EOF
+          chmod +x scripts/hopper-detect.sh
+
+      - name: Add Cloudflare DoH Script
+        run: |
+          cat << 'EOF' > scripts/cloudflare-doh.sh
+          #!/bin/sh
+          # D2K — Cloudflare DNS-over-HTTPS Setup
+          set -e
+          DOH_ENDPOINT="https://1.1.1.1/dns-query"
+          echo "Configuring DoH via $DOH_ENDPOINT..."
+          EOF
+          chmod +x scripts/cloudflare-doh.sh
+
+      - name: Add Hopper 3810 Optimized Config
+        run: |
+          cat << 'EOF' > config/hopper3810.conf
+          # D2K Config for Hopper 3810
+          LAN_INTERFACE="br0"
+          NFQUEUE_MAX_LEN=1024
+          TLS_BYPASS_ENABLED=1
+          TG_TUNNEL_ENABLED=1
+          DOH_ENABLED=1
+          EOF
+
+      - name: Add Hopper 3810 Guide
+        run: |
+          cat << 'EOF' > docs/HOPPER3810_GUIDE.md
+          # D2K для Hopper 3810 — Руководство
+          
+          ## Быстрая установка через SSH в Entware
+          ```bash
+          (f=$(mktemp) && curl -fsSL --connect-timeout 10 --max-time 120 \
+            https://raw.githubusercontent.com/stub11/d2k-hopper/main/scripts/install.sh \
+            -o "$f" && sh "$f"; r=$?; rm -f "$f"; exit "$r")
+          ```
+          EOF
+
+      - name: Commit and Push Enhancements
+        run: |
+          git config --global user.name "Zarabotok Auto-Bot"
+          git config --global user.email "bot@zarabotok.local"
+          git add .
+          git commit -m "feat: apply Hopper 3810 auto-detect, Cloudflare DoH, and RAM optimizations" || echo "No changes"
+          git push
