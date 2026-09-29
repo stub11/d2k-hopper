@@ -2,7 +2,7 @@
 # Virtual-only Gate 2. No physical router access.
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 WORK="${RUNNER_TEMP:-/tmp}/d2k-gate2-$$"
 BR_TAR="$WORK/buildroot.tar.xz"
 BR_URL="https://buildroot.org/downloads/buildroot-2026.08.tar.xz"
