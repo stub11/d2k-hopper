@@ -52,7 +52,7 @@ tar -tzf "$ARCHIVE" | grep -E '(^|/)opkg$' >/dev/null
 
 echo "== Reconstruct Entware /opt from the official archive =="
 mkdir -p "$MOUNT/opt"
-tar -xzf "$ARCHIVE" -C "$ROOT"
+tar -xzf "$ARCHIVE" -C "$MOUNT/opt" --no-same-owner
 TOP="$(tar -tzf "$ARCHIVE" | awk -F/ 'NF { print $1; exit }')"
 [ -n "$TOP" ] || {
   echo "installer top-level entry not found" >&2
