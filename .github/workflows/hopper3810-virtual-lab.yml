@@ -1,0 +1,35 @@
+name: Hopper 3810 Virtual Lab
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-virtual-lab
+  cancel-in-progress: true
+
+jobs:
+  mips-userspace:
+    name: MIPS little-endian userspace under QEMU
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MIPS toolchain and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mipsel-linux-gnu qemu-user-static
+
+      - name: Run virtual router lab
+        run: sh scripts/router-lab.sh
+
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-lab.sh
