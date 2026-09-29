@@ -1,0 +1,89 @@
+name: Upstream D2K Sync
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-d2k-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Hopper project
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fetch upstream D2K branch
+        run: |
+          git remote add upstream https://github.com/necronicle/d2k.git
+          git fetch --no-tags upstream feat/telegram-tunnel
+      - name: Detect upstream changes
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(git rev-parse upstream/feat/telegram-tunnel)"
+          state_file=".github/upstream-sync-state"
+          state="$(tr -d '[:space:]' < "$state_file" 2>/dev/null || true)"
+          if [[ -z "$state" ]]; then state="$(git rev-parse upstream/feat/telegram-tunnel~1)"; fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          if [[ "$latest" == "$state" ]]; then echo 'changed=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+          git log --oneline "$state..upstream/feat/telegram-tunnel"
+      - name: Apply known-safe MIPS pipe ABI adaptation
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for commit in $(git log --format='%H' "${{ steps.detect.outputs.state }}..${{ steps.detect.outputs.latest }}"); do
+            subject="$(git show -s --format='%s' "$commit")"
+            case "$subject" in
+              'fix(mips): accept positive pipe success on MIPS'*) sh scripts/upstream-adapt-mips-pipe.sh ;;
+              *) echo "No automatic adapter for: $commit $subject" ;;
+            esac
+          done
+      - name: Verify adapted tree
+        if: steps.detect.outputs.changed == 'true'
+        run: sh scripts/check.sh
+      - name: Commit safe adaptation and state
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="${{ steps.detect.outputs.latest }}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "sync(upstream): adapt D2K $latest for Hopper"
+            git push origin HEAD:main
+          fi
+          printf '%s\n' "$latest" > .github/upstream-sync-state
+          git add .github/upstream-sync-state
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(sync): record upstream D2K revision $latest"
+            git push origin HEAD:main
+          fi
+      - name: Report unhandled upstream changes
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="${{ steps.detect.outputs.latest }}"
+          state="${{ steps.detect.outputs.state }}"
+          unhandled="$(git log --format='%H %s' "$state..$latest" | grep -v 'fix(mips): accept positive pipe success on MIPS' || true)"
+          if [[ -n "$unhandled" ]]; then
+            gh issue create --title "Upstream D2K changes need Hopper adaptation: $latest" --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel\n\nLatest revision: $latest\n\nUnhandled changes:\n$unhandled\n\nReview the upstream diff and add a targeted adapter only after verifying compatibility with Hopper 3810."
+          fi
