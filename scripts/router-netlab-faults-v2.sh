@@ -48,12 +48,12 @@ while [ "$attempt" -lt 10 ]; do
 done
 curl --fail --silent --show-error --connect-timeout 3 http://10.204.0.2:18081/ >/dev/null
 
-echo "== DNS protocol round-trip across veth =="
-python3 - "$ROOT/dns.ready" >"$ROOT/dns.log" 2>&1 <<'PY' &
+echo "== DNS protocol round-trip inside router namespace =="
+sudo ip netns exec "$NS" python3 - "$ROOT/dns.ready" >"$ROOT/dns.log" 2>&1 <<'PY' &
 import socket,struct,sys
 ready=sys.argv[1]
 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-s.bind(("10.204.0.1",15353))
+s.bind(("10.204.0.2",15353))
 open(ready,"w").close()
 while True:
     q,addr=s.recvfrom(4096)
@@ -78,7 +78,7 @@ import socket,struct,sys
 name=b"\x07hopper\x04test\x00"
 q=struct.pack("!HHHHHH",0x1234,0x0100,1,0,0,0)+name+struct.pack("!HH",1,1)
 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(3)
-s.sendto(q,("10.204.0.1",15353)); r,_=s.recvfrom(4096)
+s.sendto(q,("10.204.0.2",15353)); r,_=s.recvfrom(4096)
 if r[:2]!=b"\x12\x34" or len(r)<12 or r[3]&0x0f != 0: raise SystemExit("DNS response invalid")
 open(sys.argv[1],"w").write("ok")
 PY
