@@ -75,7 +75,7 @@ if dmesg | grep -iE 'illegal instruction|reserved instruction|bus error|out of m
 fi
 echo "GATE2_RESULT=SUCCESS"
 sync
-poweroff -f
+echo 1 > /proc/sys/kernel/sysrq && echo o > /proc/sysrq-trigger || poweroff -f || halt -f
 EOF
 sudo chmod 755 "$ROOTFS_MOUNT/etc/init.d/S99gate2-d2k"
 sudo umount "$ROOTFS_MOUNT"
@@ -90,7 +90,7 @@ timeout 180s qemu-system-mipsel \
   -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 \
   -append "rootwait root=/dev/sda console=ttyS0" \
   -net nic,model=pcnet -net user -nographic -no-reboot \
-  > "$LOG_OUT" 2>&1
+  2>&1 | tee "$LOG_OUT"
 QEMU_RC=$?
 set -e
 cat "$LOG_OUT"
