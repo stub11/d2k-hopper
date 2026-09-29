@@ -23,7 +23,7 @@ tar -xf "$BR_TAR" -C "$ROOT"
 BR="$(find "$ROOT" -maxdepth 1 -type d -name "buildroot-*" | head -n 1)"
 cd "$BR"
 make qemu_mips32r2el_malta_defconfig
-make -j2
+make -j"$(nproc)"
 [ -x output/images/vmlinux ]
 [ -s output/images/rootfs.ext2 ]
 echo "== Build real Entware EXT4 /opt disk =="
