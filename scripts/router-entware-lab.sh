@@ -52,7 +52,7 @@ tar -tzf "$ARCHIVE" | grep -E '(^|/)opkg$' >/dev/null
 
 echo "== Reconstruct Entware /opt from the official archive =="
 mkdir -p "$MOUNT/opt"
-tar -xzf "$ARCHIVE" -C "$MOUNT/opt" --strip-components=1 --no-same-owner
+echo "== Installer archive layout =="\ntar -tzf "$ARCHIVE" | head -n 40\necho "Archive layout inspection complete; extraction is disabled until exact root format is confirmed."\nexit 1
 [ -d "$MOUNT/opt" ] || {\n  echo "virtual /opt is missing" >&2\n  exit 1\n}\n\necho "== Verify Keenetic-compatible Entware layout =="
 [ -f "$MOUNT/opt/etc/opkg.conf" ]
 [ -d "$MOUNT/opt/etc/init.d" ]
