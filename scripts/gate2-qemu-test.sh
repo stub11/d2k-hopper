@@ -8,14 +8,14 @@ WORK="${RUNNER_TEMP:-/tmp}/d2k-gate2-$$"
 ASSET_DIR="${GATE2_ASSET_DIR:-$HOME/.cache/d2k-gate2}"
 ROOTFS_TAR="$ASSET_DIR/debian-buster-mipsel.tar.xz"
 KERNEL_BIN="$ASSET_DIR/vmlinux-3.2.0-4-4kc-malta"
-INITRD_BIN=""
 ROOTFS_IMAGE="$WORK/debian-rootfs.ext4"
 OPT_IMAGE="$WORK/hopper-opt.ext4"
 ROOTFS_MOUNT="$WORK/rootfs"
 OPT_MOUNT="$WORK/opt"
 LOG_OUT="$ROOT/qemu-gate2-serial.log"
 D2K_BIN="$ROOT/dist/mips/d2k"
-ASSET_BASE="https://people.debian.org/~aurel32/qemu/mipsel"
+ROOTFS_BASE="https://people.debian.org/~jcowgill/qemu-mips"
+KERNEL_BASE="https://people.debian.org/~aurel32/qemu/mipsel"
 
 cleanup() {
   timeout 30s sudo umount "$OPT_MOUNT" 2>/dev/null || true
@@ -31,7 +31,7 @@ for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf; d
 mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
 
 echo "[STEP] Download Debian Malta kernel/rootfs..."
-[ -s "$ROOTFS_TAR" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$ROOTFS_TAR" "$ASSET_BASE/debian-buster-mipsel.tar.xz"
+[ -s "$ROOTFS_TAR" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$ROOTFS_TAR" "$ROOTFS_BASE/debian-buster-mipsel.tar.xz"
 [ -s "$KERNEL_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$KERNEL_BIN" "$ASSET_BASE/vmlinux-4.14.0-3-5kc-malta.mipsel.buster"
 
 echo "[STEP] Prepare Debian rootfs image..."
