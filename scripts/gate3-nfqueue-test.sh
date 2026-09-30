@@ -278,6 +278,7 @@ done
 [ "$stopped" -eq 1 ] || { cat "$LOG_OUT"; echo "d2kd did not stop" >&2; exit 1; }
 
 echo "[STEP] queue-bypass check: NEW HTTP request after d2kd exit..."
+sleep 2
 bypass_code=$(curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/ || true)
 echo "HTTP_BYPASS=$bypass_code"
 [ "$bypass_code" = "200" ] || { cat "$LOG_OUT"; echo "queue-bypass request failed" >&2; exit 1; }
