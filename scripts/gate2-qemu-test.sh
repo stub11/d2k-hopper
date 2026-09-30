@@ -104,7 +104,7 @@ rm -f "$LOG_OUT"
 set +e
 echo "[STEP] QEMU timeout: 180s"
 timeout 180s qemu-system-mipsel \
-  -M malta -cpu 5Kc -m 128M \
+  -M malta -cpu 24Kc -m 128M \
   -kernel "$KERNEL_BIN" -initrd "$INITRD_BIN" \
   -drive file="$ROOTFS_IMAGE",format=raw,if=ide,index=0 \
   -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 \
