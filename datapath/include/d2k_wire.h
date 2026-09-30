@@ -24,6 +24,9 @@
  * посылки к посылке. Адреса и порты в сетевом порядке байт — ровно так, как
  * они лежат в заголовке. */
 typedef struct {
+    uint8_t  family;
+    uint8_t  src_ip6[16];
+    uint8_t  dst_ip6[16];
     uint32_t src_ip;   /* сетевой порядок */
     uint32_t dst_ip;
     uint16_t src_port; /* сетевой порядок */

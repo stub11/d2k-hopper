@@ -73,7 +73,27 @@ static void check_golden(void) {
     }
 }
 
+static void check_ipv6_wire(void) {
+    d2k_conn c; memset(&c, 0, sizeof c);
+    c.family = 6;
+    uint8_t s[16] = {0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1};
+    uint8_t d[16] = {0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,2};
+    memcpy(c.src_ip6, s, 16); memcpy(c.dst_ip6, d, 16);
+    uint8_t sp[2]={0x9c,0x40}, dp[2]={0x01,0xbb};
+    memcpy(&c.src_port,sp,2); memcpy(&c.dst_port,dp,2);
+    c.ack=0x11223344; c.window=64240; c.ttl=64;
+    uint8_t body[]={0xde,0xad,0xbe,0xef};
+    d2k_emit e; memset(&e,0,sizeof e); e.seq=1000; e.bytes=body; e.len=sizeof body;
+    uint8_t pkt[256]; size_t n=d2k_wire_build(&c,&e,pkt,sizeof pkt);
+    CHECK(n == 40+20+sizeof body, "IPv6 packet length wrong");
+    CHECK((pkt[0]>>4)==6, "not IPv6");
+    CHECK(d2k_wire_tcp_checksum_ok(pkt,n), "IPv6 TCP checksum invalid");
+    e.poison=D2K_POISON_BADSUM; n=d2k_wire_build(&c,&e,pkt,sizeof pkt);
+    CHECK(n > 0 && !d2k_wire_tcp_checksum_ok(pkt,n), "IPv6 bad checksum not detected");
+}
+
 int main(void) {
+    check_ipv6_wire();
     d2k_conn c;
     memset(&c, 0, sizeof c);
     /* 192.168.1.67 -> 1.2.3.4, порты 40000 -> 443 */

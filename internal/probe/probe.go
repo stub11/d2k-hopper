@@ -86,7 +86,7 @@ func (p *Prober) Do(ctx context.Context, addr string, port int, hello []byte) Re
 	if d == nil {
 		d = &net.Dialer{Timeout: 3 * time.Second}
 	}
-	conn, err := d.DialContext(ctx, "tcp4", net.JoinHostPort(addr, strconv.Itoa(port)))
+	conn, err := d.DialContext(ctx, networkForAddr(addr), net.JoinHostPort(addr, strconv.Itoa(port)))
 	if err != nil {
 		res.Err = err
 		res.Elapsed = time.Since(start)
@@ -151,6 +151,14 @@ func (p *Prober) Do(ctx context.Context, addr string, port int, hello []byte) Re
 // HasAppData — дошло ли до прикладных данных. Тот же признак, по которому
 // уровень 3 отличается от уровня 2 у пользовательского трафика.
 func (r Result) HasAppData() bool { return r.SeenTypes&(1<<(23-20)) != 0 }
+
+func networkForAddr(addr string) string {
+	if ip := net.ParseIP(addr); ip != nil {
+		if ip.To4() != nil { return "tcp4" }
+		return "tcp6"
+	}
+	return "tcp"
+}
 
 func classify(err error) Outcome {
 	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNABORTED) {

@@ -13,6 +13,7 @@
 
 #include "d2k_plans.h"
 #include "d2k_session.h"
+#include "ipv6.h"
 #include "d2k_tls.h"
 
 /* Сколько первых пакетов потока имеет смысл разбирать в поисках приветствия.
@@ -159,6 +160,251 @@ static uint32_t rd32(const uint8_t *p) {
            (uint32_t)p[2] << 8 | (uint32_t)p[3];
 }
 
+static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
+                                  uint64_t now_ns, uint8_t *buf, size_t bufcap, d2k_result *out) {
+    struct d2k_ip6_info ip6;
+    int rc = d2k_parse_ipv6(pkt, len, &ip6);
+    if (rc == D2K_IP6_ERR) {
+        out->skipped = "некорректный IPv6";
+        return 0;
+    }
+    if (rc != D2K_IP6_TCP) {
+        out->skipped = "IPv6 не TCP";
+        return 0;
+    }
+
+    const uint8_t *t = (const uint8_t *)ip6.tcph;
+    size_t tcp_off = (size_t)(t - pkt);
+    size_t ip6_end = sizeof(struct ip6_hdr) + (size_t)ntohs(ip6.ip6h->ip6_plen);
+    size_t payload_off = ip6.payload ? (size_t)(ip6.payload - pkt) : ip6_end;
+    if (tcp_off > ip6_end || payload_off > ip6_end || ip6.payload_len > ip6_end - payload_off) {
+        out->skipped = "длина IPv6 не сходится";
+        return 0;
+    }
+
+    d2k_key key;
+    int src_is_low = d2k_key_make6(&key, ip6.ip6h->ip6_src.s6_addr,
+                                   ip6.ip6h->ip6_dst.s6_addr,
+                                   t, t + 2);
+    uint8_t flags = t[13];
+    int syn = (flags & 0x02) != 0;
+    int rst = (flags & 0x04) != 0;
+    int ack = (flags & 0x10) != 0;
+    int fin = (flags & 0x01) != 0;
+
+    d2k_flow *fl = d2k_track_get(s->flows, &key, now_ns);
+    if (!fl) {
+        out->skipped = "таблица потоков полна";
+        return 0;
+    }
+    if (!fl->dir_known) {
+        if (syn && !ack) {
+            fl->init_low = src_is_low;
+            fl->dir_known = 1;
+        } else if (syn && ack) {
+            fl->init_low = !src_is_low;
+            fl->dir_known = 1;
+        } else if (fl->fwd_pkts == 0 && fl->rev_pkts == 0) {
+            fl->init_low = src_is_low;
+        }
+    }
+    int fwd = (src_is_low == fl->init_low);
+    const uint32_t rev_before = fl->rev_after_hello;
+    size_t total = (size_t)(ip6.payload - pkt) + ip6.payload_len;
+    if (fwd) {
+        fl->fwd_pkts++;
+        fl->fwd_bytes += total;
+    } else {
+        if (!fl->rev_profiled) {
+            fl->rev_profiled = 1;
+            fl->rev_ttl = ip6.hop_limit;
+            fl->rev_tos = 0;
+        }
+        fl->rev_pkts++;
+        fl->rev_bytes += total;
+        if (fl->saw_hello) {
+            fl->rev_after_hello++;
+            if (ip6.payload_len > 0) {
+                uint8_t t0 = ip6.payload[0];
+                if (fl->rev_first_type == 0) fl->rev_first_type = t0;
+                if (t0 >= 20 && t0 <= 23) fl->rev_types |= (uint8_t)(1u << (t0 - 20));
+                fl->rev_payload_after_hello += (uint32_t)ip6.payload_len;
+            }
+        }
+    }
+    if (syn && !ack) fl->saw_syn = 1;
+    if (syn && ack) fl->saw_synack = 1;
+
+    if (fl->saw_hello && fl->rev_payload_after_hello > 0 && !fl->exchange_told) {
+        fl->exchange_told = 1;
+        s->exchanges++;
+        d2k_jrn_detail det;
+        memset(&det, 0, sizeof det);
+        det.tos = fl->rev_types;
+        d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_EXCHANGE,
+                        fl->rev_first_type, fl->rev_payload_after_hello,
+                        &det, NULL, 0, NULL);
+    }
+
+    if (rst && !fwd && fl->saw_hello && rev_before == 0) {
+        d2k_jrn_detail det;
+        memset(&det, 0, sizeof det);
+        det.ttl = ip6.hop_limit;
+        det.ref_ttl = fl->rev_profiled ? fl->rev_ttl : 0;
+        suspect(s, now_ns, &key, fl, D2K_SUSPECT_RST, &det);
+    }
+    if (rst || fin) {
+        d2k_track_remove(s->flows, &key);
+        out->skipped = rst ? "IPv6 соединение сброшено" : "IPv6 соединение закрывается";
+        return 0;
+    }
+
+    if (ip6.payload_len == 0) {
+        out->skipped = "IPv6 без полезной нагрузки";
+        return 0;
+    }
+    uint32_t in_seq = ((uint32_t)t[4] << 24) | ((uint32_t)t[5] << 16) |
+                      ((uint32_t)t[6] << 8) | t[7];
+    if (!fwd) {
+        s->pay_reverse++;
+    } else if (fl->saw_hello) {
+        s->pay_after_hello++;
+    } else if (fl->fwd_pkts > D2K_HELLO_WINDOW) {
+        s->pay_late++;
+    }
+    if (!fl->saw_hello && fwd && fl->fwd_pkts <= D2K_HELLO_WINDOW) {
+        d2k_tls_info tls;
+        memset(&tls, 0, sizeof tls);
+        d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+        if (!tls.is_client_hello) {
+            s->pay_not_hello++;
+            s->last_nonhello_first = ip6.payload[0];
+        } else {
+            if (ip6.payload_len <= sizeof s->last_hello) {
+                memcpy(s->last_hello, ip6.payload, ip6.payload_len);
+                s->last_hello_len = ip6.payload_len;
+                s->last_name_len = 0;
+                if (tls.have_sni && tls.sni_len <= sizeof s->last_name) {
+                    memcpy(s->last_name, ip6.payload + tls.sni_off, tls.sni_len);
+                    s->last_name_len = tls.sni_len;
+                }
+            }
+            fl->saw_hello = 1;
+            fl->had_sni = tls.have_sni ? 1 : 0;
+            fl->hello_seq = in_seq;
+            s->hellos++;
+            if (tls.have_sni) {
+                s->with_sni++;
+                d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_HELLO_SNI, 0, 0,
+                                NULL, ip6.payload + tls.sni_off, tls.sni_len, NULL);
+            } else {
+                d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_HELLO_NONAME, 0, 0,
+                                NULL, NULL, 0, NULL);
+            }
+        }
+    }
+    d2k_tls_info tls;
+    memset(&tls, 0, sizeof tls);
+    if (!fl->saw_hello) {
+        /* The parser above may have seen a ClientHello and set saw_hello. If it
+         * did not, there is no plan action to apply to this packet. */
+        out->skipped = "IPv6 не ClientHello";
+        return 0;
+    }
+    /* IPv6 currently uses the session fallback plan. Per-target IPv6 plan keys
+     * belong to the controller/catalog vertical and are intentionally not
+     * invented here. */
+    const d2k_plan *use = s->plan;
+    if (!use) {
+        out->skipped = "плана для IPv6 цели нет";
+        return 0;
+    }
+    if (fl->plan_done) {
+        out->skipped = "план уже применён к этому IPv6 потоку";
+        return 0;
+    }
+    if (fl->damaged) {
+        out->skipped = "IPv6 поток испорчен предыдущей отменой";
+        refuse(s, now_ns, &key, out->skipped);
+        return 0;
+    }
+
+    /* Re-parse the first payload only for the SNI offsets consumed by the
+     * existing executor; no packet bytes are copied into a heap object. */
+    d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+    if (!tls.is_client_hello) {
+        out->skipped = "IPv6 не ClientHello";
+        return 0;
+    }
+    d2k_pkt in;
+    memset(&in, 0, sizeof in);
+    in.payload = ip6.payload;
+    in.payload_len = ip6.payload_len;
+    in.seq = in_seq;
+    in.have_sni = tls.have_sni;
+    in.sni_off = tls.sni_off;
+    in.sni_len = tls.sni_len;
+
+    d2k_actions acts;
+    memset(&acts, 0, sizeof acts);
+    if (d2k_plan_apply(use, fl, &in, &acts) != 0) {
+        out->skipped = "IPv6 план неприменим к этому пакету";
+        refuse(s, now_ns, &key, out->skipped);
+        d2k_actions_free(&acts);
+        return 0;
+    }
+
+    d2k_conn wire;
+    memset(&wire, 0, sizeof wire);
+    wire.family = D2K_KEY_IPV6;
+    memcpy(wire.src_ip6, ip6.ip6h->ip6_src.s6_addr, 16);
+    memcpy(wire.dst_ip6, ip6.ip6h->ip6_dst.s6_addr, 16);
+    memcpy(&wire.src_port, t, 2);
+    memcpy(&wire.dst_port, t + 2, 2);
+    wire.ack = ((uint32_t)t[8] << 24) | ((uint32_t)t[9] << 16) |
+               ((uint32_t)t[10] << 8) | t[11];
+    wire.window = rd16(t + 14);
+    wire.ttl = ip6.hop_limit;
+
+    size_t used = 0;
+    size_t n = acts.n;
+    if (n > sizeof out->out / sizeof out->out[0]) n = sizeof out->out / sizeof out->out[0];
+    for (size_t i = 0; i < n; i++) {
+        size_t made = d2k_wire_build(&wire, &acts.v[i], buf + used, bufcap - used);
+        if (made == 0) {
+            d2k_cancel cancel;
+            d2k_actions_cancel(&acts, i, &cancel);
+            out->n_out = i;
+            out->verdict = (cancel.fate == D2K_ORIG_DROP) ? D2K_VERDICT_DROP : D2K_VERDICT_ACCEPT;
+            if (cancel.stream_damaged) fl->damaged = 1;
+            out->skipped = "IPv6 буфер отправки кончился";
+            refuse(s, now_ns, &key, out->skipped);
+            d2k_actions_free(&acts);
+            return 0;
+        }
+        out->out[i].delay_us = acts.v[i].delay_us;
+        out->out[i].off = used;
+        out->out[i].len = made;
+        used += made;
+    }
+    if (acts.fate == D2K_ORIG_HOLD) {
+        out->n_out = 0;
+        out->verdict = D2K_VERDICT_ACCEPT;
+        out->skipped = "IPv6 удержание оригинала не поддержано";
+        refuse(s, now_ns, &key, out->skipped);
+        d2k_actions_free(&acts);
+        return 0;
+    }
+    out->n_out = n;
+    out->verdict = (acts.fate == D2K_ORIG_DROP) ? D2K_VERDICT_DROP : D2K_VERDICT_ACCEPT;
+    fl->plan_done = 1;
+    fl->guards = d2k_plan_guards(use);
+    s->applied++;
+    d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_PLAN_APPLIED, 0, 0, NULL, NULL, 0, NULL);
+    d2k_actions_free(&acts);
+    return 0;
+}
+
 int d2k_session_packet(d2k_session *s, const uint8_t *pkt, size_t len,
                        uint64_t now_ns, uint8_t *buf, size_t bufcap,
                        d2k_result *out) {
@@ -170,6 +416,9 @@ int d2k_session_packet(d2k_session *s, const uint8_t *pkt, size_t len,
     if (!s || !pkt) {
         out->skipped = "нет сессии или пакета";
         return 0;
+    }
+    if ((pkt[0] >> 4) == 6) {
+        return session_packet_ipv6(s, pkt, len, now_ns, buf, bufcap, out);
     }
 
     /* --- заголовки, с явными границами на каждом шаге ------------------- */

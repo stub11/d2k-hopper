@@ -34,6 +34,7 @@ int d2k_key_make(d2k_key *k, const uint8_t *src_ip4, const uint8_t *dst_ip4,
     const uint8_t *hi = src_is_low ? b : a;
 
     memset(k, 0, sizeof *k);
+    k->family = D2K_KEY_IPV4;
     memcpy(&k->low_ip, lo, 4);
     memcpy(&k->low_port, lo + 4, 2);
     memcpy(&k->high_ip, hi, 4);
@@ -75,6 +76,23 @@ static size_t key_hash(const d2k_key *k) {
         h = (h ^ b[i]) * 16777619u;
     }
     return h;
+}
+
+int d2k_key_make6(d2k_key *k, const uint8_t *src_ip6, const uint8_t *dst_ip6,
+                  const uint8_t *src_port_be, const uint8_t *dst_port_be) {
+    if (!k || !src_ip6 || !dst_ip6 || !src_port_be || !dst_port_be)
+        return 0;
+    uint8_t a[18], b[18];
+    memcpy(a, src_ip6, 16); memcpy(a + 16, src_port_be, 2);
+    memcpy(b, dst_ip6, 16); memcpy(b + 16, dst_port_be, 2);
+    int src_is_low = memcmp(a, b, sizeof a) <= 0;
+    const uint8_t *lo = src_is_low ? a : b;
+    const uint8_t *hi = src_is_low ? b : a;
+    memset(k, 0, sizeof *k);
+    k->family = D2K_KEY_IPV6;
+    memcpy(k->low_ip6, lo, 16); memcpy(&k->low_port, lo + 16, 2);
+    memcpy(k->high_ip6, hi, 16); memcpy(&k->high_port, hi + 16, 2);
+    return src_is_low;
 }
 
 d2k_table *d2k_track_new(size_t capacity) {

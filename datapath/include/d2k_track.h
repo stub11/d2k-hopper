@@ -14,6 +14,9 @@
 #ifndef D2K_TRACK_H
 #define D2K_TRACK_H
 
+#define D2K_KEY_IPV4 4
+#define D2K_KEY_IPV6 6
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -27,7 +30,10 @@
  * есть, у соединения его нет. Без канонизации ответное направление заводило бы
  * второй поток, и план мог бы примениться к одному соединению дважды. */
 typedef struct {
-    uint32_t low_ip;
+    uint8_t  family;          /* AF_INET or AF_INET6 */
+    uint8_t  low_ip6[16];
+    uint8_t  high_ip6[16];
+    uint32_t low_ip;          /* IPv4 address, retained for IPv4 journal ABI */
     uint32_t high_ip;
     uint16_t low_port;
     uint16_t high_port;
@@ -43,6 +49,8 @@ typedef struct {
  * оно одинаково на любой арке, в отличие от сравнения чисел. */
 int d2k_key_make(d2k_key *k, const uint8_t *src_ip4, const uint8_t *dst_ip4,
                  const uint8_t *src_port_be, const uint8_t *dst_port_be);
+int d2k_key_make6(d2k_key *k, const uint8_t *src_ip6, const uint8_t *dst_ip6,
+                  const uint8_t *src_port_be, const uint8_t *dst_port_be);
 
 struct d2k_flow {
     d2k_key  key;

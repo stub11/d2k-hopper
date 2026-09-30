@@ -70,10 +70,59 @@ static uint32_t pseudo_sum(const uint8_t *src4, const uint8_t *dst4, size_t tcp_
     return sum16(ph, sizeof ph, 0);
 }
 
+static uint32_t pseudo_sum6(const uint8_t *src, const uint8_t *dst, size_t tcp_len) {
+    uint32_t acc = 0;
+    acc = sum16(src, 16, acc);
+    acc = sum16(dst, 16, acc);
+    acc += (uint32_t)(tcp_len >> 16);
+    acc += (uint32_t)(tcp_len & 0xffffu);
+    acc += IPPROTO_TCP;
+    return acc;
+}
+
+static size_t d2k_wire_build6(const d2k_conn *c, const d2k_emit *e,
+                              uint8_t *out, size_t cap) {
+    size_t opt_len = (e->poison & D2K_POISON_TCPTS_BACK) ? TS_OPT_LEN : 0;
+    size_t total = 40 + TCP_HDR + opt_len + e->len;
+    if (total > cap || total - 40 > 0xffff || (e->poison & D2K_POISON_IPID_ZERO)) return 0;
+    memset(out, 0, 40 + TCP_HDR + opt_len);
+    out[0] = 0x60;
+    wr16(out + 4, (uint16_t)(total - 40));
+    memcpy(out + 8, c->src_ip6, 16);
+    memcpy(out + 24, c->dst_ip6, 16);
+    out[6] = IPPROTO_TCP;
+    out[7] = e->ttl ? e->ttl : (c->ttl ? c->ttl : 64);
+    uint8_t *t = out + 40;
+    memcpy(t + 0, &c->src_port, 2);
+    memcpy(t + 2, &c->dst_port, 2);
+    wr32(t + 4, e->seq + (uint32_t)e->seq_shift);
+    wr32(t + 8, c->ack);
+    t[12] = (uint8_t)(((TCP_HDR + opt_len) / 4) << 4);
+    t[13] = 0x18;
+    wr16(t + 14, c->window);
+    wr16(t + 16, 0);
+    if (opt_len) {
+        uint8_t *o = t + TCP_HDR;
+        o[0]=1; o[1]=1; o[2]=8; o[3]=10;
+        wr32(o + 4, 0); wr32(o + 8, 0);
+    }
+    if (e->len) memcpy(out + 40 + TCP_HDR + opt_len, e->bytes, e->len);
+    size_t tcp_len = TCP_HDR + opt_len + e->len;
+    uint32_t acc = pseudo_sum6(out + 8, out + 24, tcp_len);
+    acc = sum16(out + 40, tcp_len, acc);
+    uint16_t ck = fold(acc);
+    if (e->poison & D2K_POISON_BADSUM) { ck = (uint16_t)~ck; if (ck == 0) ck = 0xffff; }
+    wr16(t + 16, ck);
+    return total;
+}
+
 size_t d2k_wire_build(const d2k_conn *c, const d2k_emit *e,
                       uint8_t *out, size_t cap) {
     if (!c || !e || !out) {
         return 0;
+    }
+    if (c->family == 6) {
+        return d2k_wire_build6(c, e, out, cap);
     }
     size_t opt_len = (e->poison & D2K_POISON_TCPTS_BACK) ? TS_OPT_LEN : 0;
     size_t total = IP_HDR + TCP_HDR + opt_len + e->len;
@@ -149,7 +198,18 @@ size_t d2k_wire_build(const d2k_conn *c, const d2k_emit *e,
 }
 
 int d2k_wire_tcp_checksum_ok(const uint8_t *pkt, size_t len) {
-    if (!pkt || len < IP_HDR + TCP_HDR) {
+    if (!pkt) return 0;
+    if (len >= 40 + TCP_HDR && (pkt[0] >> 4) == 6) {
+        size_t plen = rd16(pkt + 4);
+        if (plen < TCP_HDR || plen > len - 40) return 0;
+        size_t tcp_len = plen;
+        size_t doff = (size_t)(pkt[40 + 12] >> 4) * 4u;
+        if (doff < TCP_HDR || doff > tcp_len) return 0;
+        uint32_t acc6 = pseudo_sum6(pkt + 8, pkt + 24, tcp_len);
+        acc6 = sum16(pkt + 40, tcp_len, acc6);
+        return fold(acc6) == 0;
+    }
+    if (len < IP_HDR + TCP_HDR) {
         return 0;
     }
     size_t ihl = (size_t)(pkt[0] & 0x0f) * 4;
