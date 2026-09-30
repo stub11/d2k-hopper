@@ -14,6 +14,9 @@
 #ifndef D2K_TRACK_H
 #define D2K_TRACK_H
 
+#define D2K_KEY_IPV4 4
+#define D2K_KEY_IPV6 6
+
 #include <stddef.h>
 #include <stdint.h>
 
