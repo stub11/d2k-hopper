@@ -32,7 +32,7 @@ mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
 
 echo "[STEP] Download Debian Malta kernel/rootfs..."
 [ -s "$ROOTFS_TAR" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$ROOTFS_TAR" "$ROOTFS_BASE/debian-buster-mipsel.tar.xz"
-[ -s "$KERNEL_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$KERNEL_BIN" "$ASSET_BASE/vmlinux-4.14.0-3-5kc-malta.mipsel.buster"
+[ -s "$KERNEL_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$KERNEL_BIN" "$KERNEL_BASE/vmlinux-3.2.0-4-4kc-malta"
 
 echo "[STEP] Prepare Debian rootfs image..."
 truncate -s 1G "$ROOTFS_IMAGE"
