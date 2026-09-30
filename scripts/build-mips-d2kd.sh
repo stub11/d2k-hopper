@@ -21,7 +21,7 @@ CFLAGS="-std=c99 -O2 -Wall -Wextra -Werror -Iinclude"
 LDFLAGS="-static"
 
 echo "CC: $ZIG cc"
-echo "Target: mipsel-linux-musleabi / softfloat"
+echo "Target: mipsel-linux.1.1.82-musleabi / softfloat"
 "$ZIG" version
 "$ZIG" targets >/dev/null
 
