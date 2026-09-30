@@ -45,9 +45,11 @@ sudo tar -xJpf "$ROOTFS_TAR" -C "$ROOTFS_MOUNT"
 echo "[STEP] Prepare VM block-device nodes..."
 sudo mkdir -p "$ROOTFS_MOUNT/dev"
 for spec in "sdb 8 16" "hdb 3 68" "vdb 252 16" "sda2 8 2"; do
-  set -- $spec
-  node="$ROOTFS_MOUNT/dev/$1"
-  [ -b "$node" ] || sudo mknod "$node" b "$2" "$3"
+  read -r name major minor <<EOF
+$spec
+EOF
+  node="$ROOTFS_MOUNT/dev/$name"
+  [ -b "$node" ] || sudo mknod "$node" b "$major" "$minor"
   sudo chmod 600 "$node"
 done
 
