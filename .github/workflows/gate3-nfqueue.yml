@@ -1,0 +1,64 @@
+name: Gate 3 — MIPS NFQUEUE Forwarding Path
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate3-nfqueue-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nfqueue-forwarding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install QEMU, MIPS compiler and test tools
+        run: |
+          sudo dpkg --add-architecture mipsel || true
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-mips qemu-system-data e2fsprogs xz-utils file shellcheck \
+            gcc-mipsel-linux-gnu libc6-dev-mipsel-cross iproute2 curl python3
+
+      - name: Cache Debian Malta assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/d2k-gate3
+          key: gate3-debian-malta-v1
+
+      - name: Build real d2kd for MIPS softfloat
+        run: sh scripts/build-mips-d2kd.sh
+
+      - name: Verify script syntax
+        run: |
+          shellcheck -s sh scripts/build-mips-d2kd.sh scripts/gate3-nfqueue-test.sh
+          sh -n scripts/gate3-nfqueue-test.sh
+
+      - name: Run Gate 3 NFQUEUE forwarding test
+        timeout-minutes: 8
+        run: sudo sh scripts/gate3-nfqueue-test.sh
+
+      - name: Preserve Gate 3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate3-nfqueue-evidence
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            qemu-gate3-serial.log
+            dist/mips-d2kd/d2kd
+            dist/mips-d2kd/d2kd.elf-header.txt
