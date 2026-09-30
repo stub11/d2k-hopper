@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/d2k-gate2
-          key: gate2-debian-malta-v2
+          key: gate2-debian-malta-v3
       - name: Build D2K for MIPS softfloat
         run: sh scripts/build-mips-d2k.sh
       - name: Run Gate 2 VM
