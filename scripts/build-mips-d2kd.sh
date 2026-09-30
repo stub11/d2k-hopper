@@ -4,10 +4,10 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 OUT_DIR="${1:-$ROOT/dist/mips-d2kd}"
-CC="${MIPSEL_CC:-mipsel-linux-gnu-gcc}"
+ZIG="${ZIG:-zig}"
 
-command -v "$CC" >/dev/null 2>&1 || {
-  echo "missing MIPS cross compiler: $CC" >&2
+command -v "$ZIG" >/dev/null 2>&1 || {
+  echo "missing Zig toolchain: $ZIG" >&2
   exit 1
 }
 command -v file >/dev/null 2>&1 || { echo "missing file" >&2; exit 1; }
@@ -20,12 +20,12 @@ SRC="d2kd.c nfq.c raw.c plan_parse.c plan_apply.c tls.c wire.c track.c session.c
 CFLAGS="-std=c99 -O2 -Wall -Wextra -Werror -Iinclude"
 LDFLAGS="-static"
 
-echo "CC: $CC"
-echo "Target: mipsel-linux-gnu / softfloat"
-"$CC" -dumpmachine
-"$CC" -Q --help=target 2>/dev/null | grep -E 'soft-float|float' || true
+echo "CC: $ZIG cc"
+echo "Target: mipsel-linux-musl / softfloat"
+"$ZIG" version
+"$ZIG" targets >/dev/null
 
-"$CC" $CFLAGS -msoft-float $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
+"$ZIG" cc -target mipsel-linux-musl -msoft-float $CFLAGS $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
 file "$OUT_DIR/d2kd"
 readelf -h "$OUT_DIR/d2kd" > "$OUT_DIR/d2kd.elf-header.txt"
 grep -q 'ELF32' "$OUT_DIR/d2kd.elf-header.txt"
