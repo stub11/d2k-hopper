@@ -100,6 +100,23 @@ func run(name string, args ...string) bool {
 func main() {
 	fmt.Println("GATE2: static init")
 	_ = syscall.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+	// devtmpfs can hide device nodes prepared in the rootfs image.
+	// Re-create the expected block nodes inside the VM if they are missing.
+	for _, spec := range []struct{name string; major int; minor int}{
+		{"sdb", 8, 16}, {"hdb", 3, 68}, {"vdb", 252, 16}, {"sda2", 8, 2},
+	} {
+		path := "/dev/" + spec.name
+		st, err := os.Stat(path)
+		if err == nil && st.Mode()&os.ModeDevice != 0 && st.Mode()&os.ModeCharDevice == 0 {
+			continue
+		}
+		_ = syscall.Mknod(path, syscall.S_IFBLK|0600, int(syscall.Mkdev(uint32(spec.major), uint32(spec.minor))))
+	}
+	fmt.Println("GATE2: block-device scan")
+	for _, dev := range []string{"/dev/sdb", "/dev/hdb", "/dev/vdb", "/dev/sda2"} {
+		st, err := os.Stat(dev)
+		fmt.Printf("GATE2: disk candidate=%s exists=%t block=%t err=%v\\n", dev, err == nil, err == nil && st.Mode()&os.ModeDevice != 0 && st.Mode()&os.ModeCharDevice == 0, err)
+	}
 	if err := os.MkdirAll("/opt", 0755); err != nil {
 		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mkdir-opt: %v", err))
 	}
