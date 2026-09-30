@@ -1,35 +1,26 @@
-# Gate 4 — TLS ClientHello & QUIC Initial parsing
+# Gate 4 — TLS ClientHello & QUIC Initial Parsing
+
+Gate 4 starts from main commit `37d4e157b189e0ffe16d5e54004efb1d6694b871`, after Gate 3 NFQUEUE verification.
 
 ## Scope
 
-Gate 4 starts from the Gate 3-passing `main` baseline (`fa06cdb0548d44b59c38c438bf93a51ba02dcb26`) and covers protocol-level parsing for:
-
-- TLS 1.3 ClientHello records carried over TCP;
-- ClientHello fragmentation across TCP payloads;
-- SNI extraction with strict bounds checking;
-- ClientHello without SNI;
-- malformed/truncated TLS records;
-- QUIC Initial packet detection and bounded parsing;
-- QUIC CRYPTO frame extraction from Initial packets;
-- extraction of the embedded TLS ClientHello from QUIC CRYPTO data;
-- QUIC Initial packet-number/header validation without assuming a fixed packet layout.
+- Parse TLS records carried over TCP and identify TLS ClientHello.
+- Extract the ClientHello structural fields needed by the datapath without terminating TLS.
+- Parse QUIC long-header Initial packets.
+- Validate packet bounds and variable-length integer encodings.
+- Keep parsers allocation-light and deterministic for datapath use.
+- Add positive and malformed-input fixtures.
+- Add CI evidence for both TLS ClientHello and QUIC Initial paths.
 
 ## Acceptance evidence
 
-The gate will require deterministic unit vectors plus integration evidence showing:
+Gate 4 is not complete until CI demonstrates:
 
-1. valid TLS ClientHello is recognized;
-2. SNI offsets/lengths are correct;
-3. fragmented and truncated inputs never produce out-of-bounds anchors;
-4. non-TLS and non-ClientHello records are rejected as anchors without being treated as parser failures;
-5. valid QUIC Initial packets are recognized;
-6. CRYPTO data can be reassembled from Initial packets;
-7. an embedded TLS ClientHello can be parsed after QUIC CRYPTO reassembly;
-8. malformed QUIC varints, frame lengths, and packet boundaries are rejected safely;
-9. all Gate 4 tests pass in CI on the supported targets.
+1. valid TLS ClientHello is recognized and parsed;
+2. malformed/truncated TLS input is rejected safely;
+3. valid QUIC Initial is recognized and parsed;
+4. malformed/truncated QUIC input is rejected safely;
+5. parser tests pass without crashes or out-of-bounds reads;
+6. evidence is recorded in this document.
 
-## Baseline
-
-Gate 4 is branched from the fresh Gate 3 `main` baseline after successful Run #56 (Run ID `36715017460`) / PR #24 merge.
-
-Existing TLS parsing tests in `datapath/test_tls.c` are retained as the starting regression suite; QUIC Initial parsing will be added without weakening the existing TLS bounds checks.
+Implementation and fixtures will be added incrementally on this branch.
