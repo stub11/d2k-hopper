@@ -1,0 +1,31 @@
+name: Hopper 3810 MIPS System Entware Lab
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hopper3810-mips-entware-system-lab
+  cancel-in-progress: true
+
+jobs:
+  mips-entware-system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install QEMU system emulator and filesystem tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-mips e2fsprogs build-essential rsync cpio unzip bc libncurses-dev python3
+      - name: Run MIPS system + Entware lab
+        run: sudo sh scripts/router-mips-entware-system-lab.sh
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/router-mips-entware-system-lab.sh
