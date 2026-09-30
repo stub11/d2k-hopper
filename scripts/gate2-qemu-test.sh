@@ -7,15 +7,15 @@ ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 WORK="${RUNNER_TEMP:-/tmp}/d2k-gate2-$$"
 ASSET_DIR="${GATE2_ASSET_DIR:-$HOME/.cache/d2k-gate2}"
 ROOTFS_TAR="$ASSET_DIR/debian-buster-mipsel.tar.xz"
-KERNEL_BIN="$ASSET_DIR/vmlinux-4.14.0-3-5kc-malta.mipsel.buster"
-INITRD_BIN="$ASSET_DIR/initrd.img-4.14.0-3-5kc-malta.mipsel.buster"
+KERNEL_BIN="$ASSET_DIR/vmlinux-3.2.0-4-4kc-malta"
+INITRD_BIN=""
 ROOTFS_IMAGE="$WORK/debian-rootfs.ext4"
 OPT_IMAGE="$WORK/hopper-opt.ext4"
 ROOTFS_MOUNT="$WORK/rootfs"
 OPT_MOUNT="$WORK/opt"
 LOG_OUT="$ROOT/qemu-gate2-serial.log"
 D2K_BIN="$ROOT/dist/mips/d2k"
-ASSET_BASE="https://people.debian.org/~jcowgill/qemu-mips"
+ASSET_BASE="https://people.debian.org/~aurel32/qemu/mipsel"
 
 cleanup() {
   timeout 30s sudo umount "$OPT_MOUNT" 2>/dev/null || true
@@ -33,11 +33,10 @@ mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
 echo "[STEP] Download Debian Malta kernel/rootfs..."
 [ -s "$ROOTFS_TAR" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$ROOTFS_TAR" "$ASSET_BASE/debian-buster-mipsel.tar.xz"
 [ -s "$KERNEL_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$KERNEL_BIN" "$ASSET_BASE/vmlinux-4.14.0-3-5kc-malta.mipsel.buster"
-[ -s "$INITRD_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$INITRD_BIN" "$ASSET_BASE/initrd.img-4.14.0-3-5kc-malta.mipsel.buster"
 
 echo "[STEP] Prepare Debian rootfs image..."
 truncate -s 1G "$ROOTFS_IMAGE"
-mkfs.ext4 -F -L D2KROOT "$ROOTFS_IMAGE" >/dev/null
+mkfs.ext4 -F -O ^metadata_csum,^64bit -L D2KROOT "$ROOTFS_IMAGE" >/dev/null
 echo "[STEP] Mount rootfs image..."
 timeout 30s sudo mount -o loop "$ROOTFS_IMAGE" "$ROOTFS_MOUNT"
 echo "[STEP] Extract Debian rootfs..."
@@ -64,6 +63,7 @@ while [ ! -b /dev/sdb ] && [ "$i" -lt 10 ]; do
   sleep 1
   i=$((i + 1))
 done
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 mount -t ext4 /dev/sdb /opt || { echo "GATE2_RESULT=FAIL mount-opt"; poweroff -f; exit 1; }
 [ -x /opt/bin/d2k ] || { echo "GATE2_RESULT=FAIL missing-d2k"; poweroff -f; exit 1; }
 echo "GATE2: cpu"
@@ -104,8 +104,8 @@ rm -f "$LOG_OUT"
 set +e
 echo "[STEP] QEMU timeout: 180s"
 timeout 180s qemu-system-mipsel \
-  -M malta -cpu 24Kc -m 128M \
-  -kernel "$KERNEL_BIN" -initrd "$INITRD_BIN" \
+  -M malta -cpu 4Kc -m 128M \
+  -kernel "$KERNEL_BIN" \
   -drive file="$ROOTFS_IMAGE",format=raw,if=ide,index=0 \
   -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 \
   -append "root=/dev/sda rw console=ttyS0 init=/opt/gate2-init" \
