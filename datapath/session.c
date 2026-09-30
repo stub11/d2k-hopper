@@ -174,9 +174,10 @@ static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
     }
 
     const uint8_t *t = (const uint8_t *)ip6.tcph;
-    size_t tcp_off = (size_t)(ip6.payload - pkt) - ((size_t)t[12] >> 4) * 4u;
+    size_t tcp_off = (size_t)(t - pkt);
     size_t ip6_end = sizeof(struct ip6_hdr) + (size_t)ntohs(ip6.ip6h->ip6_plen);
-    if (tcp_off > ip6_end || ip6.payload_len > ip6_end - (size_t)(ip6.payload - pkt)) {
+    size_t payload_off = ip6.payload ? (size_t)(ip6.payload - pkt) : ip6_end;
+    if (tcp_off > ip6_end || payload_off > ip6_end || ip6.payload_len > ip6_end - payload_off) {
         out->skipped = "длина IPv6 не сходится";
         return 0;
     }
