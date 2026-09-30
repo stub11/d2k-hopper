@@ -89,15 +89,31 @@ func run(name string, args ...string) bool {
 func main() {
 	fmt.Println("GATE2: static init")
 	_ = syscall.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
-	for i := 0; i < 10; i++ {
-		if _, err := os.Stat("/dev/sdb"); err == nil {
+	if err := os.MkdirAll("/opt", 0755); err != nil {
+		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mkdir-opt: %v", err))
+	}
+	fmt.Println("GATE2: waiting for opt disk")
+	optDev := ""
+	for i := 0; i < 15; i++ {
+		for _, dev := range []string{"/dev/sdb", "/dev/hdb", "/dev/vdb", "/dev/sda2"} {
+			if st, err := os.Stat(dev); err == nil && st.Mode()&os.ModeDevice != 0 {
+				optDev = dev
+				break
+			}
+		}
+		if optDev != "" {
 			break
 		}
 		time.Sleep(time.Second)
 	}
-	if err := syscall.Mount("/dev/sdb", "/opt", "ext4", 0, ""); err != nil {
-		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mount-opt: %v", err))
+	fmt.Printf("GATE2: detected opt device=%q\\n", optDev)
+	if optDev == "" {
+		stop(false, "GATE2_RESULT=FAIL mount-opt: no block device found")
 	}
+	if err := syscall.Mount(optDev, "/opt", "ext4", 0, ""); err != nil {
+		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mount-opt %s: %v", optDev, err))
+	}
+	fmt.Printf("GATE2: mounted opt device=%s\\n", optDev)
 	if !run("/opt/bin/d2k", "--version") {
 		stop(false, "GATE2_RESULT=FAIL version")
 	}
