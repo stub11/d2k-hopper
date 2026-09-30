@@ -9,7 +9,6 @@ CC="${MIPSEL_CC:-mipsel-linux-gnu-gcc}"
 ASSET_DIR="${GATE3_ASSET_DIR:-$HOME/.cache/d2k-gate3}"
 ROOTFS_TAR="$ASSET_DIR/debian-buster-mipsel.tar.xz"
 ROOTFS_BASE="https://people.debian.org/~jcowgill/qemu-mips"
-SYSROOT="$WORK_SYSROOT"
 
 command -v "$CC" >/dev/null 2>&1 || { echo "missing MIPS cross compiler: $CC" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo "missing curl" >&2; exit 1; }
