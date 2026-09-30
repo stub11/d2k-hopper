@@ -34,7 +34,7 @@ LDFLAGS="-static"
 
 echo "CC: $CC"
 echo "Target: mipsel-linux-gnu / softfloat using Debian mipsel sysroot"
-"$CC" $CFLAGS -msoft-float --sysroot="$SYSROOT" $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
+"$CC" $CFLAGS -march=mips32 -mabi=32 -msoft-float --sysroot="$SYSROOT" $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
 file "$OUT_DIR/d2kd"
 readelf -h "$OUT_DIR/d2kd" > "$OUT_DIR/d2kd.elf-header.txt"
 grep -q 'ELF32' "$OUT_DIR/d2kd.elf-header.txt"
