@@ -1,0 +1,54 @@
+name: Gate 2 — MIPS D2K Execution Lab
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate2-mips-d2k-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test-mips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Install QEMU and filesystem tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-mips qemu-system-data ipxe-qemu seabios e2fsprogs xz-utils file shellcheck
+      - name: Cache Debian Malta assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/d2k-gate2
+          key: gate2-debian-malta-v3
+      - name: Build D2K for MIPS softfloat
+        run: sh scripts/build-mips-d2k.sh
+      - name: Run Gate 2 VM
+        timeout-minutes: 5
+        run: sudo sh scripts/gate2-qemu-test.sh
+      - name: ShellCheck
+        if: always()
+        run: shellcheck -s sh scripts/build-mips-d2k.sh scripts/gate2-qemu-test.sh
+      - name: Preserve Gate 2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate2-mips-d2k-evidence
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            qemu-gate2-serial.log
+            dist/mips/d2k
+            dist/mips/d2k.elf-header.txt

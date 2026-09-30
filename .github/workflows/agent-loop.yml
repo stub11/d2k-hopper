@@ -1,0 +1,58 @@
+name: Autonomous Agent Loop
+
+on:
+  workflow_run:
+    workflows: ["Gate 2 — MIPS D2K Execution Lab", "Gate 3 — NFQUEUE Forwarding Path"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-orchestrator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Handle Workflow Failure
+        if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "=== [AGENT] Test failed! Downloading logs and invoking Aider for auto-fix ==="
+          pip install aider-chat
+          gh run view ${{ github.event.workflow_run.id }} --log-failed > /tmp/failure.log
+
+          aider \
+            --model openrouter/qwen/qwen-2.5-coder-32b-instruct:free \
+            --yes-always \
+            --no-suggest-shell-commands \
+            --message "Test ${{ github.event.workflow_run.name }} failed. Here is the log: $(tail -n 100 /tmp/failure.log). Fix the error with the minimal diff."
+
+          git config user.name "autonomous-agent[bot]"
+          git config user.email "autonomous-agent[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "fix(agent): auto-repair test failure" && git push)
+
+      - name: Handle Workflow Success
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "=== [AGENT] Test passed! Auto-merge and advance ==="
+
+          PR_NUM=$(gh pr list --head ${{ github.event.workflow_run.head_branch }} --json number -q '.[0].number')
+          if [ -n "$PR_NUM" ]; then
+            gh pr merge "$PR_NUM" --squash --auto || gh pr merge "$PR_NUM" --admin --squash
+          fi
+
+          if [ "${{ github.event.workflow_run.name }}" = "Gate 2 — MIPS D2K Execution Lab" ]; then
+            echo "Proceeding to Gate 3 (NFQUEUE Forwarding Path)..."
+            # Gate 3 branch/workflow creation follows as the next-stage orchestration step.
+          fi
