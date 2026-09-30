@@ -164,9 +164,17 @@ d2k_nfq *d2k_nfq_open(const d2k_nfq_cfg *cfg, char *err, size_t errcap) {
     uint32_t seq;
     size_t n;
 
-    /* PF_BIND намеренно не посылается: с ядра 3.8 команда — пустышка, а
-       целевое ядро 4.9. Замерщик этапа 0 обходился без неё на настоящем
-       устройстве. */
+    /* Debian Malta Gate 3 uses the 3.2 kernel. Unlike kernels >= 3.8,
+       that kernel still needs the legacy protocol-family bind before the
+       queue bind; libnetfilter_queue performs this setup as well. */
+    seq = q->seq++;
+    n = d2k_nl_cfg_cmd(msg, sizeof msg, cfg->queue, seq,
+                       D2K_NFQNL_CFG_CMD_PF_BIND, AF_INET);
+    if (send_and_ack(q, msg, n, seq, err, errcap) != 0) {
+        close(q->fd);
+        free(q);
+        return NULL;
+    }
 
     seq = q->seq++;
     n = d2k_nl_cfg_cmd(msg, sizeof msg, cfg->queue, seq,

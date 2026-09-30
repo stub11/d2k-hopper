@@ -1,8 +1,9 @@
 #!/bin/sh
+# shellcheck disable=SC2015,SC2024,SC2034
 # Gate 3: real C d2kd on Debian Malta, NFQUEUE in the IPv4 FORWARD path.
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 WORK="${RUNNER_TEMP:-/tmp}/d2k-gate3-$$"
 ASSET_DIR="${GATE3_ASSET_DIR:-$HOME/.cache/d2k-gate3}"
 ROOTFS_TAR="$ASSET_DIR/debian-buster-mipsel.tar.xz"
@@ -15,9 +16,9 @@ LOG_OUT="$ROOT/qemu-gate3-serial.log"
 D2KD_BIN="$ROOT/dist/mips-d2kd/d2kd"
 ROOTFS_BASE="https://people.debian.org/~jcowgill/qemu-mips"
 KERNEL_BASE="https://people.debian.org/~aurel32/qemu/mipsel"
-TAP="d2k-g3-tap"
-BR="d2k-g3-br"
-NS="d2k-g3-http"
+TAP="g3tap-$"
+BR="g3br-$"
+NS="g3ns-$"
 
 cleanup() {
   set +e
@@ -30,7 +31,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
-for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf go ip curl grep; do need "$x"; done
+for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf go ip curl grep script; do need "$x"; done
 [ -x "$D2KD_BIN" ] || { echo "missing real C binary: $D2KD_BIN" >&2; exit 1; }
 
 mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
@@ -44,6 +45,25 @@ truncate -s 1G "$ROOTFS_IMAGE"
 mkfs.ext4 -F -O ^metadata_csum,^64bit -L D2KROOT "$ROOTFS_IMAGE" >/dev/null
 timeout 30s sudo mount -o loop "$ROOTFS_IMAGE" "$ROOTFS_MOUNT"
 sudo tar -xJpf "$ROOTFS_TAR" -C "$ROOTFS_MOUNT"
+
+echo "[STEP] Install MIPS iproute2/iptables into rootfs..."
+MIPSL_DEB_DIR="$WORK/mipsel-debs"
+MIPSL_APT="$WORK/mipsel-apt"
+mkdir -p "$MIPSL_DEB_DIR" "$MIPSL_APT/state/lists/partial" "$MIPSL_APT/cache/archives/partial"
+: > "$MIPSL_APT/state/status"
+cat > "$WORK/mipsel-sources.list" <<EOF
+deb [arch=mipsel trusted=yes] http://archive.debian.org/debian buster main
+deb [arch=mipsel trusted=yes] http://archive.debian.org/debian wheezy main
+EOF
+sudo apt-get -o Dir::State="$MIPSL_APT/state" -o Dir::State::status="$MIPSL_APT/state/status" -o Dir::Cache="$MIPSL_APT/cache" -o Dir::Etc::sourcelist="$WORK/mipsel-sources.list" -o Dir::Etc::sourceparts="-" -o APT::Architecture=mipsel -o Acquire::Check-Valid-Until=false update
+sudo apt-get -y --download-only --no-install-recommends -o Dir::State="$MIPSL_APT/state" -o Dir::State::status="$MIPSL_APT/state/status" -o Dir::Cache="$MIPSL_APT/cache" -o Dir::Etc::sourcelist="$WORK/mipsel-sources.list" -o Dir::Etc::sourceparts="-" -o APT::Architecture=mipsel -o Acquire::Check-Valid-Until=false -o Dir::Cache::archives="$MIPSL_DEB_DIR" install iproute2 iptables kmod
+cd "$MIPSL_DEB_DIR"
+sudo apt-get -o Dir::State="$MIPSL_APT/state" -o Dir::State::status="$MIPSL_APT/state/status" -o Dir::Cache="$MIPSL_APT/cache" -o Dir::Etc::sourcelist="$WORK/mipsel-sources.list" -o Dir::Etc::sourceparts="-" -o APT::Architecture=mipsel -o Acquire::Check-Valid-Until=false download linux-image-3.2.0-4-4kc-malta
+cd "$ROOT"
+for deb in "$MIPSL_DEB_DIR"/*.deb; do
+  sudo dpkg-deb -x "$deb" "$ROOTFS_MOUNT"
+done
+
 sudo mkdir -p "$ROOTFS_MOUNT/dev"
 for spec in "sdb 8 16" "hdb 3 68" "vdb 252 16" "sda2 8 2"; do
   read -r name major minor <<EOF
@@ -79,6 +99,7 @@ func run(name string, args ...string) bool {
   cmd := exec.Command(name, args...)
   out, err := cmd.CombinedOutput()
   fmt.Printf("GATE3: %s %s\n%s", name, strings.Join(args, " "), out)
+  if err != nil { fmt.Printf("GATE3: command error=%v\n", err) }
   return err == nil
 }
 
@@ -99,8 +120,14 @@ func stop(ok bool) {
 }
 
 func main() {
+  _ = os.Setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
   fmt.Println("GATE3: static init")
   _ = syscall.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+  _ = os.MkdirAll("/proc", 0555)
+  _ = syscall.Mount("proc", "/proc", "proc", 0, "")
+  _ = os.MkdirAll("/sys", 0555)
+  _ = syscall.Mount("sysfs", "/sys", "sysfs", 0, "")
+  _ = os.MkdirAll("/run", 0755)
   _ = os.MkdirAll("/opt", 0755)
 
   opt := ""
@@ -120,29 +147,35 @@ func main() {
     fmt.Printf("GATE3: mount /opt: %v\n", err); stop(false)
   }
 
-  // Debian buster is archived; use the Debian archive while the VM has its
-  // temporary QEMU user-network interface. This installs only the iptables
-  // userspace required by the gate.
-  _ = os.MkdirAll("/etc/apt/sources.list.d", 0755)
-  os.WriteFile("/etc/apt/sources.list", []byte(
-    "deb [check-valid-until=no] http://archive.debian.org/debian buster main\n"+
-    "deb [check-valid-until=no] http://archive.debian.org/debian buster-updates main\n"), 0644)
-  must("apt-get", "-o", "Acquire::Check-Valid-Until=false", "update")
-  must("apt-get", "-y", "-o", "Acquire::Check-Valid-Until=false", "install", "iptables")
+    // Configure the QEMU user-net WAN explicitly now that iproute2 is preloaded.
+  must("ip", "addr", "replace", "10.0.2.15/24", "dev", "eth0")
+  must("ip", "link", "set", "eth0", "up")
+  must("ip", "route", "replace", "default", "via", "10.0.2.2", "dev", "eth0")
+  _ = os.WriteFile("/etc/resolv.conf", []byte("nameserver 10.0.2.3\n"), 0644)
 
   must("ip", "addr", "add", "10.20.0.1/24", "dev", "eth1")
   must("ip", "link", "set", "eth1", "up")
-  must("sysctl", "-w", "net.ipv4.ip_forward=1")
+  if err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1\n"), 0644); err != nil {
+    fmt.Printf("GATE3: enable ip_forward: %v\n", err)
+    stop(false)
+  }
+  _ = run("/sbin/depmod", "-a", "3.2.0-4-4kc-malta")
+  for _, mod := range []string{"nfnetlink", "nfnetlink_queue", "nf_conntrack", "iptable_filter", "iptable_nat", "xt_NFQUEUE", "xt_MASQUERADE"} {
+    _ = run("/sbin/modprobe", mod)
+  }
 
   // QEMU user networking sends host:18080 to guest:10.0.2.15:18080.
   // DNAT makes that traffic a real FORWARD path to the HTTP namespace.
-  must("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
+  const ipt = "/usr/sbin/iptables-legacy"
+  must(ipt, "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
        "--dport", "18080", "-j", "DNAT", "--to-destination", "10.20.0.2:80")
-  must("iptables", "-A", "FORWARD", "-p", "tcp", "--dport", "80",
+  must(ipt, "-t", "nat", "-A", "POSTROUTING", "-o", "eth1", "-p", "tcp", "--dport", "80",
+       "-j", "MASQUERADE")
+  must(ipt, "-I", "FORWARD", "-p", "tcp", "--dport", "80",
        "-j", "NFQUEUE", "--queue-num", "0", "--queue-bypass")
-  must("iptables", "-A", "FORWARD", "-p", "tcp", "--sport", "80",
+  must(ipt, "-A", "FORWARD", "-p", "tcp", "--sport", "80",
        "-j", "ACCEPT")
-  must("iptables", "-A", "FORWARD", "-p", "tcp", "--dport", "80",
+  must(ipt, "-A", "FORWARD", "-p", "tcp", "--dport", "80",
        "-j", "ACCEPT")
 
   fmt.Println("GATE3: iptables FORWARD NFQUEUE queue=0 bypass=1 installed")
@@ -164,8 +197,10 @@ func main() {
   // must traverse the rule without a userspace listener.
   fmt.Println("GATE3_D2KD_STOPPED")
   fmt.Println("GATE3: queue-bypass rule remains installed")
-  must("iptables", "-t", "nat", "-L", "PREROUTING", "-n")
-  must("iptables", "-L", "FORWARD", "-n", "-v")
+  fmt.Println("GATE3: keeping VM alive for host-side queue-bypass probe")
+  time.Sleep(10 * time.Second)
+  must(ipt, "-t", "nat", "-L", "PREROUTING", "-n")
+  must(ipt, "-L", "FORWARD", "-n", "-v")
   if out, e := exec.Command("dmesg").CombinedOutput(); e == nil {
     fmt.Printf("GATE3_DMESG_BEGIN\n%sGATE3_DMESG_END\n", out)
   }
@@ -184,7 +219,8 @@ echo "[STEP] Create isolated HTTP server namespace..."
 sudo ip netns add "$NS"
 sudo ip link add "$BR" type bridge
 sudo ip link set "$BR" up
-sudo ip tuntap add dev "$TAP" mode tap user="$(id -u)"
+sudo ip addr add 10.20.0.254/24 dev "$BR"
+sudo ip tuntap add dev "$TAP" mode tap
 sudo ip link set "$TAP" master "$BR"
 sudo ip link set "$TAP" up
 sudo ip link add g3veth type veth peer name g3srv
@@ -194,31 +230,31 @@ sudo ip link set g3srv netns "$NS"
 sudo ip netns exec "$NS" ip link set lo up
 sudo ip netns exec "$NS" ip link set g3srv up
 sudo ip netns exec "$NS" ip addr add 10.20.0.2/24 dev g3srv
-sudo ip netns exec "$NS" ip route add default via 10.20.0.1
+sudo ip netns exec "$NS" ip route add default via 10.20.0.254
 sudo ip netns exec "$NS" python3 -m http.server 80 --bind 10.20.0.2 >"$WORK/http-server.log" 2>&1 &
 HTTP_PID=$!
 
 echo "[STEP] Launch QEMU two-NIC gateway..."
 rm -f "$LOG_OUT"
 set +e
-qemu-system-mipsel \
-  -M malta -cpu 4Kc -m 192M \
-  -kernel "$KERNEL_BIN" \
-  -drive file="$ROOTFS_IMAGE",format=raw,if=ide,index=0 \
-  -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 \
-  -append "root=/dev/sda rw console=ttyS0 init=/gate3-init" \
+script -qefc "qemu-system-mipsel \
+  -M malta -cpu 24Kc -m 192M \
+  -kernel \"$KERNEL_BIN\" \
+  -drive file=\"$ROOTFS_IMAGE\",format=raw,if=ide,index=0 \
+  -drive file=\"$OPT_IMAGE\",format=raw,if=ide,index=1 \
+  -append \"root=/dev/sda rw console=ttyS0 init=/gate3-init ip=dhcp\" \
   -netdev user,id=wan,hostfwd=tcp:127.0.0.1:18080-10.0.2.15:18080 \
-  -device pcnet,netdev=wan \
-  -netdev tap,id=lan,ifname="$TAP",script=no,downscript=no \
-  -device pcnet,netdev=lan \
-  -nographic -no-reboot >"$LOG_OUT" 2>&1 &
+  -device pcnet,netdev=wan,romfile=\"\" \
+  -netdev tap,id=lan,ifname=\"$TAP\",script=no,downscript=no \
+  -device pcnet,netdev=lan,romfile=\"\" \
+  -nographic -vga none -no-reboot" "$LOG_OUT" &
 QEMU_PID=$!
 set -e
 
 echo "[STEP] Wait for GATE3_READY..."
 ready=0
 for _ in $(seq 1 180); do
-  if grep -q '^GATE3_READY$' "$LOG_OUT" 2>/dev/null; then ready=1; break; fi
+  if grep -q 'GATE3_READY' "$LOG_OUT" 2>/dev/null; then ready=1; break; fi
   if ! kill -0 "$QEMU_PID" 2>/dev/null; then break; fi
   sleep 1
 done
@@ -236,7 +272,7 @@ done
 echo "[STEP] Wait for d2kd to stop, leaving NFQUEUE rule in place..."
 stopped=0
 for _ in $(seq 1 60); do
-  if grep -q '^GATE3_D2KD_STOPPED$' "$LOG_OUT" 2>/dev/null; then stopped=1; break; fi
+  if grep -q 'GATE3_D2KD_STOPPED' "$LOG_OUT" 2>/dev/null; then stopped=1; break; fi
   sleep 1
 done
 [ "$stopped" -eq 1 ] || { cat "$LOG_OUT"; echo "d2kd did not stop" >&2; exit 1; }
