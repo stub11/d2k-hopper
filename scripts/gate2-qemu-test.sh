@@ -68,18 +68,15 @@ func stop(ok bool, msg string) {
 	if msg != "" {
 		fmt.Println(msg)
 	}
+	if !ok {
+		os.Exit(1)
+	}
 	syscall.Sync()
-	cmd := syscall.LINUX_REBOOT_CMD_HALT
-	if ok {
-		cmd = syscall.LINUX_REBOOT_CMD_POWER_OFF
-	}
-	if err := syscall.Reboot(cmd); err != nil {
+	if err := syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
 		fmt.Printf("GATE2: reboot failed: %v\n", err)
+		os.Exit(1)
 	}
-	if ok {
-		os.Exit(0)
-	}
-	os.Exit(1)
+	os.Exit(0)
 }
 
 func run(name string, args ...string) bool {
