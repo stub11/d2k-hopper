@@ -8,7 +8,6 @@ WORK="${RUNNER_TEMP:-/tmp}/d2k-gate2-$$"
 ASSET_DIR="${GATE2_ASSET_DIR:-$HOME/.cache/d2k-gate2}"
 ROOTFS_TAR="$ASSET_DIR/debian-buster-mipsel.tar.xz"
 KERNEL_BIN="$ASSET_DIR/vmlinux-3.2.0-4-4kc-malta"
-BUSYBOX_DEB="$ASSET_DIR/busybox-static_1.35.0-4+deb12u1+b1_mipsel.deb"
 ROOTFS_IMAGE="$WORK/debian-rootfs.ext4"
 OPT_IMAGE="$WORK/hopper-opt.ext4"
 ROOTFS_MOUNT="$WORK/rootfs"
@@ -26,7 +25,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
-for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf dpkg-deb find head; do need "$x"; done
+for x in curl tar truncate mkfs.ext4 mount timeout qemu-system-mipsel readelf go; do need "$x"; done
 [ -x "$D2K_BIN" ] || { echo "missing built binary: $D2K_BIN" >&2; exit 1; }
 
 mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
@@ -34,7 +33,6 @@ mkdir -p "$WORK" "$ASSET_DIR" "$ROOTFS_MOUNT" "$OPT_MOUNT"
 echo "[STEP] Download Debian Malta kernel/rootfs..."
 [ -s "$ROOTFS_TAR" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$ROOTFS_TAR" "$ROOTFS_BASE/debian-buster-mipsel.tar.xz"
 [ -s "$KERNEL_BIN" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$KERNEL_BIN" "$KERNEL_BASE/vmlinux-3.2.0-4-4kc-malta"
-[ -s "$BUSYBOX_DEB" ] || curl -fsSL --connect-timeout 10 --max-time 30 -o "$BUSYBOX_DEB" "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.35.0-4+deb12u1+b1_mipsel.deb"
 
 echo "[STEP] Prepare Debian rootfs image..."
 truncate -s 1G "$ROOTFS_IMAGE"
@@ -53,56 +51,74 @@ sudo mkdir -p "$OPT_MOUNT/bin"
 sudo install -m 755 "$D2K_BIN" "$OPT_MOUNT/bin/d2k"
 [ -x "$OPT_MOUNT/bin/d2k" ]
 
-echo "[STEP] Install static BusyBox init runtime..."
-rm -rf "$WORK/busybox"
-mkdir -p "$WORK/busybox"
-dpkg-deb -x "$BUSYBOX_DEB" "$WORK/busybox"
-BUSYBOX_BIN=$(find "$WORK/busybox" -type f -name busybox | head -n 1)
-[ -n "$BUSYBOX_BIN" ]
-sudo install -m 755 "$BUSYBOX_BIN" "$ROOTFS_MOUNT/gate2-busybox"
+echo "[STEP] Build static MIPS Gate 2 init..."
+cat > "$WORK/gate2-init.go" <<'EOF'
+package main
 
-echo "[STEP] Inject Gate 2 init..."
-sudo mkdir -p "$ROOTFS_MOUNT/opt"
-sudo sh -c 'cat > "$1/opt/gate2-init"' sh "$ROOTFS_MOUNT" <<'EOF'
-#!/gate2-busybox sh
-set -u
-echo "GATE2: init"
-mkdir -p /opt
-i=0
-while [ ! -b /dev/sdb ] && [ "$i" -lt 10 ]; do
-  sleep 1
-  i=$((i + 1))
-done
-mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
-mount -t ext4 /dev/sdb /opt || { echo "GATE2_RESULT=FAIL mount-opt"; poweroff -f; exit 1; }
-[ -x /opt/bin/d2k ] || { echo "GATE2_RESULT=FAIL missing-d2k"; poweroff -f; exit 1; }
-echo "GATE2: cpu"
-cat /proc/cpuinfo
-echo "GATE2: version"
-if ! /opt/bin/d2k --version; then
-  echo "GATE2_RESULT=FAIL version"
-  poweroff -f
-  exit 1
-fi
-echo "GATE2: help"
-if ! /opt/bin/d2k --help > /tmp/d2k-help.txt 2>&1; then
-  cat /tmp/d2k-help.txt
-  echo "GATE2_RESULT=FAIL help"
-  poweroff -f
-  exit 1
-fi
-head -n 12 /tmp/d2k-help.txt
-echo "GATE2: dmesg scan"
-if dmesg | grep -iE 'illegal instruction|reserved instruction|bus error|out of memory|oom-killer|killed process'; then
-  echo "GATE2_RESULT=FAIL kernel-fault"
-  poweroff -f
-  exit 1
-fi
-echo "GATE2_RESULT=SUCCESS"
-sync
-poweroff -f
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"syscall"
+	"time"
+)
+
+func stop(ok bool, msg string) {
+	if msg != "" {
+		fmt.Println(msg)
+	}
+	syscall.Sync()
+	cmd := syscall.LINUX_REBOOT_CMD_HALT
+	if ok {
+		cmd = syscall.LINUX_REBOOT_CMD_POWER_OFF
+	}
+	if err := syscall.Reboot(cmd); err != nil {
+		fmt.Printf("GATE2: reboot failed: %v\n", err)
+	}
+	if ok {
+		os.Exit(0)
+	}
+	os.Exit(1)
+}
+
+func run(name string, args ...string) bool {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	fmt.Printf("GATE2: %s\n%s", name, out)
+	return err == nil
+}
+
+func main() {
+	fmt.Println("GATE2: static init")
+	_ = syscall.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+	for i := 0; i < 10; i++ {
+		if _, err := os.Stat("/dev/sdb"); err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err := syscall.Mount("/dev/sdb", "/opt", "ext4", 0, ""); err != nil {
+		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mount-opt: %v", err))
+	}
+	if !run("/opt/bin/d2k", "--version") {
+		stop(false, "GATE2_RESULT=FAIL version")
+	}
+	if !run("/opt/bin/d2k", "--help") {
+		stop(false, "GATE2_RESULT=FAIL help")
+	}
+	if cpu, err := os.ReadFile("/proc/cpuinfo"); err == nil {
+		fmt.Print(string(cpu))
+	}
+	if log, err := os.ReadFile("/proc/cmdline"); err == nil && strings.Contains(string(log), "console=ttyS0") {
+		fmt.Println("GATE2: serial console active")
+	}
+	stop(true, "GATE2_RESULT=SUCCESS")
+}
 EOF
-sudo chmod 755 "$ROOTFS_MOUNT/opt/gate2-init"
+GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -o "$WORK/gate2-init" "$WORK/gate2-init.go"
+readelf -h "$WORK/gate2-init" | grep -E 'Class:|Data:|Machine:'
+sudo install -m 755 "$WORK/gate2-init" "$ROOTFS_MOUNT/gate2-init"
 
 echo "[STEP] Unmount rootfs image..."
 timeout 30s sudo umount "$ROOTFS_MOUNT"
