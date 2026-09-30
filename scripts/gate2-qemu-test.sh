@@ -59,12 +59,12 @@ mkdir -p "$WORK/busybox"
 dpkg-deb -x "$BUSYBOX_DEB" "$WORK/busybox"
 BUSYBOX_BIN=$(find "$WORK/busybox" -type f -name busybox | head -n 1)
 [ -n "$BUSYBOX_BIN" ]
-sudo install -m 755 "$BUSYBOX_BIN" "$ROOTFS_MOUNT/usr/bin/busybox"
+sudo install -m 755 "$BUSYBOX_BIN" "$ROOTFS_MOUNT/gate2-busybox"
 
 echo "[STEP] Inject Gate 2 init..."
 sudo mkdir -p "$ROOTFS_MOUNT/opt"
 sudo sh -c 'cat > "$1/opt/gate2-init"' sh "$ROOTFS_MOUNT" <<'EOF'
-#!/usr/bin/busybox sh
+#!/gate2-busybox sh
 set -u
 echo "GATE2: init"
 mkdir -p /opt
