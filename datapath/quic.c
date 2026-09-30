@@ -9,7 +9,7 @@ int d2k_quic_parse(const uint8_t *b,size_t len,d2k_quic_info *out){
  if(!out)return 0; memset(out,0,sizeof *out); if(!b||len<7)return 0;
  uint8_t h=b[0]; if(!(h&0x80U)||!(h&0x40U)||((h>>4)&3U)!=0)return 0;
  uint32_t v=((uint32_t)b[1]<<24)|((uint32_t)b[2]<<16)|((uint32_t)b[3]<<8)|b[4];
- if(v!=1U&&v!=0x6b333833U)return 0; size_t o=5; uint8_t dl=b[o++];
+ if(v!=1U&&v!=0x6b333833U)return 0; out->version=v; size_t o=5; uint8_t dl=b[o++];
  if(dl>20||(size_t)dl>len-o)return 0; out->dcid_len=dl; memcpy(out->dcid,b+o,dl); o+=dl;
  if(o>=len)return 0; uint8_t sl=b[o++]; if(sl>20||(size_t)sl>len-o)return 0;
  out->scid_len=sl; memcpy(out->scid,b+o,sl); o+=sl;

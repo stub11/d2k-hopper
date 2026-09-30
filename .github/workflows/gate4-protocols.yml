@@ -1,0 +1,48 @@
+name: Gate 4 — TLS ClientHello & QUIC Initial parsing
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gate4-protocols-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  parser-qemu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install QEMU and tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-mipsel qemu-system-data e2fsprogs xz-utils file shellcheck golang-go
+          curl -fsSL https://ziglang.org/download/0.15.1/zig-x86_64-linux-0.15.1.tar.xz -o /tmp/zig.tar.xz
+          sudo tar -xJf /tmp/zig.tar.xz -C /opt
+          sudo ln -sf /opt/zig-x86_64-linux-0.15.1/zig /usr/local/bin/zig
+      - name: Cache Debian Malta assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/d2k-gate4
+          key: gate4-debian-malta-v2
+      - name: Build MIPS parser test
+        run: sh scripts/build-mips-parser-test.sh
+      - name: Verify scripts
+        run: |
+          shellcheck -s sh scripts/build-mips-parser-test.sh scripts/gate4-protocols-test.sh
+          sh -n scripts/gate4-protocols-test.sh
+      - name: Run parser test in QEMU Malta
+        timeout-minutes: 8
+        run: sudo sh scripts/gate4-protocols-test.sh
+      - name: Preserve Gate 4 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate4-protocols-evidence
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            qemu-gate4-serial.log
+            dist/mips-d2k-parser/d2kd_parser_test
+            dist/mips-d2k-parser/d2kd_parser_test.elf-header.txt
