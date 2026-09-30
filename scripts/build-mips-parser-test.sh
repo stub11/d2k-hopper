@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/dist/mips-d2k-parser}"
 ZIG="${ZIG:-zig}"
 mkdir -p "$OUT"
