@@ -5,17 +5,17 @@
 **Gate 3: PASS**
 
 - Workflow: `Gate 3 — MIPS NFQUEUE Forwarding Path`
-- Run ID: `36714270216` (Run #50)
-- Tested commit: `d39202d6e27847e13eb90bedf54175875e1926c9`
-- PR: #22
-- Merge commit: `038cd9f4408e19ef986e7a0e708c7c7720741110`
+- Run ID: `36715017460` (Run #56)
+- Tested commit: `37953c1a19dc79e55a5e3aa7e30b19bcec4a780e`
+- PR: #24 (Gate 3 evidence/final fixes)
+- Merge commit: `fa06cdb0548d44b59c38c438bf93a51ba02dcb26`
 - Artifact: `gate3-nfqueue-evidence`
-- Artifact ID: `11095702389`
-- Artifact SHA-256: `7609ed063ac370779ce5865999bce58597fb86b6c135ae5c3550ebb1c18b5b2d`
+- Artifact ID: `11095719033`
+- Artifact SHA-256: `335d98ca46e0f756a10834b174bfbf785f06d1797d29416e47eb239846b0cf46`
 
 ## Required evidence
 
-QEMU serial evidence from Run #50:
+QEMU serial/host evidence from Run #56:
 
 ```
 GATE3: iptables FORWARD NFQUEUE queue=0 bypass=1 installed
@@ -66,4 +66,4 @@ The test uses:
 
 The workflow uploaded `gate3-nfqueue-evidence` containing the QEMU serial log and built MIPS d2kd evidence files. The artifact is retained by GitHub Actions according to the workflow retention policy.
 
-Gate 3 is closed by the successful Run #50 evidence above.
+Gate 3 is closed by the successful Run #56 evidence above.
