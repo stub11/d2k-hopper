@@ -42,6 +42,15 @@ timeout 30s sudo mount -o loop "$ROOTFS_IMAGE" "$ROOTFS_MOUNT"
 echo "[STEP] Extract Debian rootfs..."
 sudo tar -xJpf "$ROOTFS_TAR" -C "$ROOTFS_MOUNT"
 
+echo "[STEP] Prepare VM block-device nodes..."
+sudo mkdir -p "$ROOTFS_MOUNT/dev"
+for spec in "sdb 8 16" "hdb 3 68" "vdb 252 16" "sda2 8 2"; do
+  set -- $spec
+  node="$ROOTFS_MOUNT/dev/$1"
+  [ -b "$node" ] || sudo mknod "$node" b "$2" "$3"
+  sudo chmod 600 "$node"
+done
+
 echo "[STEP] Prepare /opt image..."
 truncate -s 256M "$OPT_IMAGE"
 mkfs.ext4 -F -L HOPPEROPT "$OPT_IMAGE" >/dev/null
@@ -93,29 +102,14 @@ func main() {
 		stop(false, fmt.Sprintf("GATE2_RESULT=FAIL mkdir-opt: %v", err))
 	}
 	fmt.Println("GATE2: waiting for opt disk")
-	type diskCandidate struct {
-		path string
-		major int
-		minor int
-	}
-	candidates := []diskCandidate{
-		{"/dev/sdb", 8, 16},
-		{"/dev/hdb", 3, 68},
-		{"/dev/vdb", 252, 16},
-		{"/dev/sda2", 8, 2},
-	}
 	optDev := ""
 	for i := 0; i < 15; i++ {
-		for _, candidate := range candidates {
-			if _, err := os.Stat(candidate.path); err != nil {
-				_ = syscall.Mknod(candidate.path, syscall.S_IFBLK|0600, (candidate.major<<8)|candidate.minor)
-			}
-			if st, err := os.Stat(candidate.path); err == nil {
-				fmt.Printf("GATE2: disk candidate=%s mode=%s\\n", candidate.path, st.Mode())
-				if st.Mode()&os.ModeDevice != 0 {
-					optDev = candidate.path
-					break
-				}
+		for _, dev := range []string{"/dev/sdb", "/dev/hdb", "/dev/vdb", "/dev/sda2"} {
+			st, err := os.Stat(dev)
+			fmt.Printf("GATE2: disk candidate=%s exists=%t err=%v\\n", dev, err == nil, err)
+			if err == nil && st.Mode()&os.ModeDevice != 0 {
+				optDev = dev
+				break
 			}
 		}
 		if optDev != "" {
