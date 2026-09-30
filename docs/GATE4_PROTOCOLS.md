@@ -2,7 +2,7 @@
 
 ## Scope
 
-Gate 4 starts from the fresh Gate 3 `main` baseline and covers protocol-level parsing for:
+Gate 4 starts from the Gate 3-passing `main` baseline (`fa06cdb0548d44b59c38c438bf93a51ba02dcb26`) and covers protocol-level parsing for:
 
 - TLS 1.3 ClientHello records carried over TCP;
 - ClientHello fragmentation across TCP payloads;
@@ -30,6 +30,6 @@ The gate will require deterministic unit vectors plus integration evidence showi
 
 ## Baseline
 
-Gate 4 is branched from the fresh Gate 3 `main` baseline after successful Run #50 / Gate 3 merge.
+Gate 4 is branched from the fresh Gate 3 `main` baseline after successful Run #56 (Run ID `36715017460`) / PR #24 merge.
 
 Existing TLS parsing tests in `datapath/test_tls.c` are retained as the starting regression suite; QUIC Initial parsing will be added without weakening the existing TLS bounds checks.
