@@ -184,7 +184,7 @@ echo "[STEP] Create isolated HTTP server namespace..."
 sudo ip netns add "$NS"
 sudo ip link add "$BR" type bridge
 sudo ip link set "$BR" up
-sudo ip link add "$TAP" type dummy
+sudo ip tuntap add dev "$TAP" mode tap user="$(id -u)"
 sudo ip link set "$TAP" master "$BR"
 sudo ip link set "$TAP" up
 sudo ip link add g3veth type veth peer name g3srv
