@@ -4,7 +4,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 OUT_DIR="${1:-$ROOT/dist/mips-d2kd}"
-ZIG="${ZIG:-zig}"
+CC="${MIPSEL_CC:-mipsel-linux-gnu-gcc}"
 
 command -v "$ZIG" >/dev/null 2>&1 || {
   echo "missing Zig toolchain: $ZIG" >&2
