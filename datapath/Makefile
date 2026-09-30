@@ -197,3 +197,13 @@ check: all test-parse test-apply test-tls test-wire test-track test-session test
 
 clean:
 	rm -f *.o $(TESTS) planlab ctlprobe
+
+PARSER_TEST = d2kd_parser_test
+PARSER_CFLAGS = -std=c99 -O2 -Wall -Wextra -Werror -Iinclude
+PARSER_ZIG ?= zig
+
+$(PARSER_TEST): test_parsers.c tls.c quic.c $(HDR) include/d2k_quic.h
+	$(PARSER_ZIG) cc -target mipsel-linux.1.1.82-musleabi $(PARSER_CFLAGS) -static -o $@ test_parsers.c tls.c quic.c
+
+test-parsers: $(PARSER_TEST)
+	./$(PARSER_TEST)
