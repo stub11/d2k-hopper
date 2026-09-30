@@ -156,6 +156,9 @@ san:
 			$$(echo "$(SRC)" | tr ' ' '\n' | grep -v '^$$') ; \
 		/tmp/d2k-san-$$t; \
 	done
+	@echo "== test_ipv6 =="
+	$(CC) $(SANFLAGS) -o /tmp/d2k-san-test_ipv6 ipv6_test.c
+	/tmp/d2k-san-test_ipv6
 	@echo "санитайзеры: все проверки прошли"
 
 # Тот же набор ЧУЖИМ компилятором. Не роскошь: локально всё собирает clang, а
