@@ -1,8 +1,9 @@
 #!/bin/sh
+# shellcheck disable=SC2086
 # Build the real C datapath daemon for MIPS32 little-endian softfloat.
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT_DIR="${1:-$ROOT/dist/mips-d2kd}"
 ZIG="${ZIG:-zig}"
 
@@ -23,9 +24,8 @@ LDFLAGS="-static"
 echo "CC: $ZIG cc"
 echo "Target: mipsel-linux.1.1.82-musleabi / softfloat"
 "$ZIG" version
-"$ZIG" targets >/dev/null
 
-"$ZIG" cc -target mipsel-linux-musl -msoft-float $CFLAGS $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
+"$ZIG" cc -target mipsel-linux.1.1.82-musleabi $CFLAGS $LDFLAGS -o "$OUT_DIR/d2kd" $SRC
 file "$OUT_DIR/d2kd"
 readelf -h "$OUT_DIR/d2kd" > "$OUT_DIR/d2kd.elf-header.txt"
 grep -q 'ELF32' "$OUT_DIR/d2kd.elf-header.txt"
@@ -33,3 +33,4 @@ grep -qi 'little endian' "$OUT_DIR/d2kd.elf-header.txt"
 grep -qi 'MIPS' "$OUT_DIR/d2kd.elf-header.txt"
 cat "$OUT_DIR/d2kd.elf-header.txt"
 ls -lh "$OUT_DIR/d2kd"
+
