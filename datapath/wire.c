@@ -198,7 +198,18 @@ size_t d2k_wire_build(const d2k_conn *c, const d2k_emit *e,
 }
 
 int d2k_wire_tcp_checksum_ok(const uint8_t *pkt, size_t len) {
-    if (!pkt || len < IP_HDR + TCP_HDR) {
+    if (!pkt) return 0;
+    if (len >= 40 + TCP_HDR && (pkt[0] >> 4) == 6) {
+        size_t plen = rd16(pkt + 4);
+        if (plen < TCP_HDR || plen > len - 40) return 0;
+        size_t tcp_len = plen;
+        size_t doff = (size_t)(pkt[40 + 12] >> 4) * 4u;
+        if (doff < TCP_HDR || doff > tcp_len) return 0;
+        uint32_t acc6 = pseudo_sum6(pkt + 8, pkt + 24, tcp_len);
+        acc6 = sum16(pkt + 40, tcp_len, acc6);
+        return fold(acc6) == 0;
+    }
+    if (len < IP_HDR + TCP_HDR) {
         return 0;
     }
     size_t ihl = (size_t)(pkt[0] & 0x0f) * 4;
