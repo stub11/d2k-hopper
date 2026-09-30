@@ -110,7 +110,7 @@ func main() {
 		if err == nil && st.Mode()&os.ModeDevice != 0 && st.Mode()&os.ModeCharDevice == 0 {
 			continue
 		}
-		_ = syscall.Mknod(path, syscall.S_IFBLK|0600, int(syscall.Mkdev(uint32(spec.major), uint32(spec.minor))))
+		_ = syscall.Mknod(path, syscall.S_IFBLK|0600, int((uint32(spec.major) << 8) | uint32(spec.minor)))
 	}
 	fmt.Println("GATE2: block-device scan")
 	for _, dev := range []string{"/dev/sdb", "/dev/hdb", "/dev/vdb", "/dev/sda2"} {
