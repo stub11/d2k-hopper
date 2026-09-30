@@ -53,7 +53,7 @@ done
 
 echo "[STEP] Prepare /opt image..."
 truncate -s 256M "$OPT_IMAGE"
-mkfs.ext4 -F -L HOPPEROPT "$OPT_IMAGE" >/dev/null
+mkfs.ext4 -F -O ^metadata_csum,^64bit -L HOPPEROPT "$OPT_IMAGE" >/dev/null
 echo "[STEP] Mount /opt image..."
 timeout 30s sudo mount -o loop "$OPT_IMAGE" "$OPT_MOUNT"
 sudo mkdir -p "$OPT_MOUNT/bin"
