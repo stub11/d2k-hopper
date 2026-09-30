@@ -134,7 +134,7 @@ timeout 180s qemu-system-mipsel \
   -kernel "$KERNEL_BIN" \
   -drive file="$ROOTFS_IMAGE",format=raw,if=ide,index=0 \
   -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 \
-  -append "root=/dev/sda rw console=ttyS0 init=/opt/gate2-init" \
+  -append "root=/dev/sda rw console=ttyS0 init=/gate2-init" \
   -net nic,model=pcnet -net user -nographic -no-reboot \
   2>&1 | tee "$LOG_OUT"
 QEMU_RC=$?
