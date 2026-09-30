@@ -36,7 +36,24 @@ static void count_expired(void *ctx, const d2k_flow *f) {
     }
 }
 
+static void test_ipv6_key(void) {
+    const uint8_t a[16] = {0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1};
+    const uint8_t b[16] = {0x26,0x06,0x47,0,0,0,0,0,0,0,0,0,0,0,0,2};
+    const uint8_t p1[2] = {0x01,0xbb};
+    const uint8_t p2[2] = {0xc0,0x01};
+    d2k_key out, rev;
+    int low = d2k_key_make6(&out, a, b, p1, p2);
+    int rev_low = d2k_key_make6(&rev, b, a, p2, p1);
+    assert(out.family == D2K_KEY_IPV6);
+    assert(rev.family == D2K_KEY_IPV6);
+    assert(memcmp(&out, &rev, sizeof out) == 0);
+    assert(low == !rev_low);
+    assert(out.low_port == (uint16_t)0x01bb);
+    puts("  PASS: IPv6 canonical flow key");
+}
+
 int main(void) {
+    test_ipv6_key();
     d2k_table *t = d2k_track_new(16);
     CHECK(t != NULL, "таблица не создалась");
     if (!t) {
