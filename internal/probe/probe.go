@@ -154,7 +154,9 @@ func (r Result) HasAppData() bool { return r.SeenTypes&(1<<(23-20)) != 0 }
 
 func networkForAddr(addr string) string {
 	if ip := net.ParseIP(addr); ip != nil {
-		if ip.To4() != nil { return "tcp4" }
+		if ip.To4() != nil {
+			return "tcp4"
+		}
 		return "tcp6"
 	}
 	return "tcp"
