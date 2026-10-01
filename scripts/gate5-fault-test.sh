@@ -2,9 +2,9 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-TMP=${TMPDIR:-/tmp}/d2k-gate5.$$
+TMP=${GATE5_EVIDENCE_DIR:-${TMPDIR:-/tmp}/d2k-gate5.$}
 mkdir -p "$TMP"
-trap 'rm -rf "$TMP"' EXIT INT TERM
+if [ "${GATE5_KEEP_EVIDENCE:-0}" != 1 ]; then\n    trap 'rm -rf "$TMP"' EXIT INT TERM\nelse\n    trap 'rm -rf "$TMP"/initramfs "$TMP"/initramfs.gz' EXIT INT TERM\nfi
 
 log() { printf '[gate5] %s\n' "$*"; }
 fail() { printf '[gate5] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -86,7 +86,7 @@ grep -q -- '-X D2K_HOPPER' "$TMP/iptables.log"
 log "fail-open HTTP continuity after d2kd SIGKILL"
 python3 -m http.server 18080 --bind 127.0.0.1 --directory "$TMP" >"$TMP/http.log" 2>&1 &
 HTTP_PID=$!
-trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -rf "$TMP"' EXIT INT TERM
+trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT INT TERM
 sleep 0.5
 python3 - <<'PY'
 import urllib.request
@@ -126,7 +126,7 @@ echo GATE5-QEMU-BOOT
 (
     i=0
     while [ "$i" -lt 20 ]; do
-        dd if=/dev/zero of="/tmp/load-$i" bs=1M count=2 2>/dev/null || exit 2
+        dd if=/dev/zero of="/tmp/load-$i" bs=1M count=4 2>/dev/null || exit 2
         i=$((i + 1))
     done
     echo GATE5-QEMU-LOAD-OK
