@@ -1,0 +1,38 @@
+name: Gate 5 — Fault tolerance & resource limits
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fault-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lab dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 busybox-static cpio shellcheck
+
+      - name: Validate Gate 5 lab
+        env:
+          GATE5_EVIDENCE_DIR: ${{ github.workspace }}/gate5-evidence
+          GATE5_KEEP_EVIDENCE: '1'
+        run: |
+          mkdir -p gate5-evidence
+          chmod +x scripts/gate5-fault-test.sh scripts/rollback.sh scripts/S99d2k
+          scripts/gate5-fault-test.sh
+
+      - name: Upload QEMU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate5-fault-evidence
+          path: gate5-evidence/qemu.log
+          if-no-files-found: ignore

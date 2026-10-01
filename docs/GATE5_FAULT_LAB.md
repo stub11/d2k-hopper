@@ -13,3 +13,26 @@ Acceptance targets:
 6. Tests remain reproducible under Debian Malta QEMU and fit the CI time budget.
 
 The gate must not be considered passed until QEMU serial evidence demonstrates every required recovery scenario.
+
+
+## Automated lab
+
+The implementation is in `scripts/gate5-fault-test.sh`, with the Entware contract in
+`scripts/S99d2k` and one-command rollback in `scripts/rollback.sh`.
+
+The CI workflow `.github/workflows/gate5-fault.yml` runs four checks:
+
+- **Fault injection / fail-open continuity:** a datapath-process SIGKILL is injected while a local HTTP endpoint is serving; subsequent requests must remain HTTP 200.
+- **Watchdog/autostart:** the Entware-style `S99d2k` starts the daemon and restarts it after SIGKILL.
+- **Rollback:** a controlled iptables shim verifies that the D2K chain is detached, flushed and deleted, while the service PID is stopped; the script must exit 0.
+- **128M QEMU resource lab:** a Linux guest is booted with `-m 128M`; sustained allocation is exercised and serial output is rejected if it contains OOM-killer/SIGSEGV evidence.
+
+The watchdog/rollback tests use an isolated deterministic daemon stub so CI does not require
+NFQUEUE or privileged host networking. The normal datapath CI remains responsible for
+building and testing the real `d2kd` binary.
+
+## Evidence
+
+Evidence is uploaded by the Gate 5 workflow as the `gate5-fault-evidence` artifact.
+The gate is not considered passed until the workflow is green and the QEMU serial log
+contains both `GATE5-QEMU-BOOT` and `GATE5-QEMU-NO-OOM`.
