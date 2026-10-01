@@ -130,6 +130,7 @@ if [ -n "$QEMU" ] && [ -n "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && comm
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+[ -e /dev/zero ] || /bin/busybox mknod -m 666 /dev/zero c 1 5
 echo GATE5-QEMU-BOOT
 (
     i=0
