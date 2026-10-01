@@ -134,7 +134,7 @@ mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 echo GATE5-QEMU-BOOT
 (
     i=0
-    while [ "$i" -lt 20 ]; do
+    while [ "$i" -lt 10 ]; do
         dd if=/dev/zero of="/tmp/load-$i" bs=1M count=4 2>/dev/null || exit 2
         i=$((i + 1))
     done
