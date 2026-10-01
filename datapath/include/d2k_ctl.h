@@ -24,6 +24,8 @@
 
 /* Предел кадра. План — самое большое, что здесь ездит. */
 #define D2K_CTL_FRAME_MAX 65536
+#define D2K_CTL_KEY4_LEN 12
+#define D2K_CTL_KEY6_LEN 36
 
 /* События: датапат → контроллер. */
 #define D2K_EV_HELLO     0x0001  /* ключ + имя цели */
@@ -59,6 +61,10 @@
 /* Поймать форму следующего приветствия к цели: длина имени u8, имя.
  * Взводится один раз и срабатывает один раз. */
 #define D2K_CMD_ARM_SHAPE 0x0087
+/* IPv6 extension. 0x0083/0x0085 are already assigned to DEL_NAME/CLEAR;
+ * reusing them would silently break existing controllers. */
+#define D2K_CMD_SET_ADDR6 0x0088  /* address[16] + plan TLV */
+#define D2K_CMD_DEL_ADDR6 0x0089  /* address[16] */
 
 /* Коды причин подозрения живут в d2k_journal.h: они про наблюдение, а сокет
  * их только везёт. */
