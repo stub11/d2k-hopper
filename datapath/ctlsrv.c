@@ -146,8 +146,14 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
         }
         /* Хватает и на приветствие целиком: форма приезжает сюда же. */
         uint8_t body[16 + 2048 + 8];
-        memcpy(body, &e->key, sizeof e->key);
-        size_t n = sizeof e->key;
+        /* IPv4 control ABI is fixed at 12 bytes: low/high IPv4 address
+           followed by the two network-order ports. Do not expose the
+           in-memory d2k_key layout here; IPv6 extended that struct. */
+        memcpy(body + 0, &e->key.low_ip, 4);
+        memcpy(body + 4, &e->key.high_ip, 4);
+        memcpy(body + 8, &e->key.low_port, 2);
+        memcpy(body + 10, &e->key.high_port, 2);
+        size_t n = 12;
         uint16_t type = 0;
         switch (e->kind) {
         case D2K_JRN_HELLO_SNI:
