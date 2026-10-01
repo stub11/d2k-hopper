@@ -36,5 +36,5 @@ building and testing the real `d2kd` binary.
 The QEMU prerequisite line is logged before boot so a failed runner environment is diagnosable.
 
 Evidence is uploaded by the Gate 5 workflow as the `gate5-fault-evidence` artifact.
-The workflow prepares a readable guest kernel for unprivileged QEMU execution. The gate is not considered passed until the workflow is green and the QEMU serial log
+The workflow prepares a readable guest kernel for unprivileged QEMU execution. The kernel is copied into RUNNER_TEMP before boot. The gate is not considered passed until the workflow is green and the QEMU serial log
 contains both `GATE5-QEMU-BOOT` and `GATE5-QEMU-NO-OOM`.
