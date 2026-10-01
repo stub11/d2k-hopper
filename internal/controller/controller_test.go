@@ -11,6 +11,7 @@ package controller_test
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"bytes"
 	"context"
 	"encoding/hex"
