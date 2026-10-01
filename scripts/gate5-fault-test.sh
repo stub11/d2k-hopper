@@ -109,7 +109,7 @@ with urllib.request.urlopen(u, timeout=3) as r:
 PY
 kill "$HTTP_PID" 2>/dev/null || true
 
-log "QEMU 128M resource lab" # final verification # verification after prerequisite-path fix
+log "QEMU 128M resource lab" # kernel-selection verification # final verification # verification after prerequisite-path fix
 QEMU=${QEMU_BIN:-$(command -v qemu-system-x86_64 || true)}
 KERNEL=${QEMU_KERNEL:-}
 [ -n "$KERNEL" ] || KERNEL=$(find /boot -maxdepth 1 -type f -name "vmlinuz-*" -print 2>/dev/null | sort | tail -1 || true)
