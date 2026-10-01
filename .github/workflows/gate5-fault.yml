@@ -22,7 +22,6 @@ jobs:
 
       - name: Validate Gate 5 lab
         env:
-          QEMU_KERNEL: ${{ runner.temp }}/vmlinuz
           GATE5_EVIDENCE_DIR: ${{ github.workspace }}/gate5-evidence
           GATE5_KEEP_EVIDENCE: '1'
         run: |
