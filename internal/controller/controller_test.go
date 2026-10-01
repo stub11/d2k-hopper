@@ -597,12 +597,12 @@ func TestВопросПредшествуетКандидатам(t *testing.T) 
 func TestSyncPushesIPv6AddressBinding(t *testing.T) {
 	cat := catalog.New()
 	fp := catalog.Fingerprint{
-		Method: catalog.FingerprintMethod,
+		Method:  catalog.FingerprintMethod,
 		Signals: []catalog.Signal{{Kind: "rst", TTL: 127, IPID: 54321, ToS: 0x88, Seen: 1}},
 	}
 	pl := catalog.Plan{
 		ID: "p1", Proto: "tls",
-		Text: "d2k-plan 1 1\nid 00000000000000000000000000000042\npayload 1 deadbe\npoison 1 ttl=3 badsum\nfake payload=1 poison=1 repeats=2 gap_us=78000 place=before\norder forward\n",
+		Text:    "d2k-plan 1 1\nid 00000000000000000000000000000042\npayload 1 deadbe\npoison 1 ttl=3 badsum\nfake payload=1 poison=1 repeats=2 gap_us=78000 place=before\norder forward\n",
 		Enabled: true,
 	}
 	now := time.Now()
