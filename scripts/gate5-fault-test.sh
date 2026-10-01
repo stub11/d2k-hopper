@@ -116,7 +116,7 @@ KERNEL=${QEMU_KERNEL:-}
 log "QEMU=$QEMU kernel=$KERNEL cpio=$(command -v cpio || true) busybox=$(command -v busybox || true)"
 if [ -n "$QEMU" ] && [ -n "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
     G="$TMP/initramfs"
-    mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev"
+    mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev" "$G/tmp"
     cp "$(command -v busybox)" "$G/bin/busybox"
     ln -s busybox "$G/bin/sh"
     ln -s busybox "$G/bin/dmesg"
