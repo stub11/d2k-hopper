@@ -24,9 +24,9 @@ HDR     = include/d2k_plan.h include/d2k_tls.h include/d2k_wire.h include/d2k_tr
 
 # Тесты и их объектные файлы. Один список — чтобы санитайзерная цель не
 # разъезжалась с обычной: разъехавшись, она проверяла бы не то дерево.
-TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl test-ipv6
+TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl test-ipv6 test-ipv6-pipeline
 
-.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 cross clean
+.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline cross clean
 
 all: planlab ctlprobe
 
@@ -143,6 +143,12 @@ test-ctl: test_ctl
 
 test-ipv6: test_ipv6
 	./test_ipv6
+
+test_ipv6_pipeline: test_ipv6_pipeline.c ipv6.h track.o wire.o $(HDR)
+	$(CC) $(CFLAGS) -o $@ test_ipv6_pipeline.c track.o wire.o $(LDFLAGS)
+
+test-ipv6-pipeline: test_ipv6_pipeline
+	./test_ipv6_pipeline
 
 # Тот же набор под санитайзерами. «Не упало» и «не читало за буфером» — разные
 # утверждения, а весь датапат состоит из разбора чужих байтов. Отдельная цель,
