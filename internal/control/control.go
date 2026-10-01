@@ -22,18 +22,18 @@ import (
 
 // Типы кадров. Обязаны совпадать с datapath/include/d2k_ctl.h.
 const (
-	EvHello    uint16 = 0x0001
-	EvSuspect  uint16 = 0x0002
-	EvApplied  uint16 = 0x0003
-	EvRefused  uint16 = 0x0004
-	EvExchange uint16 = 0x0005
-	EvStats    uint16 = 0x0006
-	EvShape    uint16 = 0x0007
-	EvAck      uint16 = 0x0008
-	EvHello6   uint16 = 0x0009
-	EvSuspect6 uint16 = 0x000A
-	EvApplied6 uint16 = 0x000B
-	EvRefused6 uint16 = 0x000C
+	EvHello     uint16 = 0x0001
+	EvSuspect   uint16 = 0x0002
+	EvApplied   uint16 = 0x0003
+	EvRefused   uint16 = 0x0004
+	EvExchange  uint16 = 0x0005
+	EvStats     uint16 = 0x0006
+	EvShape     uint16 = 0x0007
+	EvAck       uint16 = 0x0008
+	EvHello6    uint16 = 0x0009
+	EvSuspect6  uint16 = 0x000A
+	EvApplied6  uint16 = 0x000B
+	EvRefused6  uint16 = 0x000C
 	EvExchange6 uint16 = 0x000D
 	EvShape6    uint16 = 0x000E
 
