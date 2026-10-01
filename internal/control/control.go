@@ -117,6 +117,7 @@ func parseKey(b []byte) (Key, error) {
 type Event struct {
 	Type uint16
 	Key  Key
+	Key6 Key6
 	// Имя цели для EvHello. Пустое — нормальное состояние (§5.3), а не сбой.
 	Name string
 	// Код причины для EvSuspect.
@@ -290,10 +291,14 @@ func (c *Conn) Next() (Event, error) {
 	var rest []byte
 	if ev.Type != EvAck && len(body) >= 37 && body[0] == 6 {
 		ev.Key.Family = 6
-		copy(ev.Key.LowIP6[:], body[1:17])
-		copy(ev.Key.HighIP6[:], body[17:33])
-		ev.Key.LowPort = binary.BigEndian.Uint16(body[33:35])
-		ev.Key.HighPort = binary.BigEndian.Uint16(body[35:37])
+		copy(ev.Key6.LowIP6[:], body[1:17])
+		copy(ev.Key6.HighIP6[:], body[17:33])
+		ev.Key6.LowPort = binary.BigEndian.Uint16(body[33:35])
+		ev.Key6.HighPort = binary.BigEndian.Uint16(body[35:37])
+		ev.Key.LowIP6 = ev.Key6.LowIP6
+		ev.Key.HighIP6 = ev.Key6.HighIP6
+		ev.Key.LowPort = ev.Key6.LowPort
+		ev.Key.HighPort = ev.Key6.HighPort
 		rest = body[37:]
 	} else {
 		key, err := parseKey(body)
