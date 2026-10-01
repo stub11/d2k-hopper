@@ -110,10 +110,11 @@ PY
 kill "$HTTP_PID" 2>/dev/null || true
 
 log "QEMU 128M resource lab"
-QEMU=${QEMU_BIN:-qemu-system-x86_64}
+QEMU=${QEMU_BIN:-$(command -v qemu-system-x86_64 || true)}
 KERNEL=${QEMU_KERNEL:-}
 [ -n "$KERNEL" ] || KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | tail -1 || true)
-if command -v "$QEMU" >/dev/null 2>&1 && [ -n "$KERNEL" ] && [ -f "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
+log "QEMU=$QEMU kernel=$KERNEL cpio=$(command -v cpio || true) busybox=$(command -v busybox || true)"
+if [ -x "$QEMU" ] && [ -n "$KERNEL" ] && [ -r "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
     G="$TMP/initramfs"
     mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev"
     cp "$(command -v busybox)" "$G/bin/busybox"
