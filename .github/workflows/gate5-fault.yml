@@ -20,6 +20,15 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 busybox-static cpio shellcheck
 
+      - name: Prepare readable QEMU kernel
+        run: |
+          KERNEL=$(sudo find /boot -maxdepth 1 -type f -name 'vmlinuz-*' -print | sort | tail -1)
+          test -n "$KERNEL"
+          sudo cp "$KERNEL" "$RUNNER_TEMP/d2k-vmlinuz"
+          sudo chmod 0644 "$RUNNER_TEMP/d2k-vmlinuz"
+          echo "QEMU_KERNEL=$RUNNER_TEMP/d2k-vmlinuz" >> "$GITHUB_ENV"
+          echo "Prepared QEMU kernel: $RUNNER_TEMP/d2k-vmlinuz"
+
       - name: Validate Gate 5 lab
         env:
           GATE5_EVIDENCE_DIR: ${{ github.workspace }}/gate5-evidence
