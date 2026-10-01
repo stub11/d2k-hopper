@@ -25,6 +25,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <netinet/in.h>
 
 #include "d2k_plan.h"
 
@@ -45,15 +46,19 @@ void         d2k_plantab_free(d2k_plantab *t);
 int d2k_plantab_set_name(d2k_plantab *t, const uint8_t *name, size_t len,
                          d2k_plan *p);
 int d2k_plantab_set_addr(d2k_plantab *t, uint32_t addr_be, d2k_plan *p);
+int d2k_plantab_set_addr6(d2k_plantab *t, const struct in6_addr *addr, d2k_plan *p);
 
 /* Убирает план цели. Возвращает 1, если что-то убрано. */
 int d2k_plantab_del_name(d2k_plantab *t, const uint8_t *name, size_t len);
 int d2k_plantab_del_addr(d2k_plantab *t, uint32_t addr_be);
+int d2k_plantab_del_addr6(d2k_plantab *t, const struct in6_addr *addr);
 
 /* Сперва по имени, потом по адресу. NULL — плана для этой цели нет, и это
  * обычный исход: пустая база при первом запуске (§2.2). */
 const d2k_plan *d2k_plantab_find(const d2k_plantab *t, const uint8_t *name,
                                  size_t len, uint32_t addr_be);
+const d2k_plan *d2k_plantab_find6(const d2k_plantab *t, const uint8_t *name,
+                                  size_t len, const struct in6_addr *addr);
 
 size_t d2k_plantab_count(const d2k_plantab *t);
 size_t d2k_plantab_capacity(const d2k_plantab *t);
