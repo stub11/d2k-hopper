@@ -261,7 +261,6 @@ func (c *Controller) push(kind, target string, tlv []byte) error {
 	return fmt.Errorf("привязка вида %q не ставится", kind)
 }
 
-
 func parseIP6(s string, out *[16]byte) error {
 	ip := net.ParseIP(s)
 	if ip == nil || ip.To16() == nil || ip.To4() != nil {
