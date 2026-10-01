@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -250,8 +251,24 @@ func (c *Controller) push(kind, target string, tlv []byte) error {
 			return err
 		}
 		return c.conn.SetPlanAddr(ip, tlv)
+	case "addr6":
+		var ip [16]byte
+		if err := parseIP6(target, &ip); err != nil {
+			return err
+		}
+		return c.conn.SetPlanAddr6(ip, tlv)
 	}
 	return fmt.Errorf("привязка вида %q не ставится", kind)
+}
+
+
+func parseIP6(s string, out *[16]byte) error {
+	ip := net.ParseIP(s)
+	if ip == nil || ip.To16() == nil || ip.To4() != nil {
+		return fmt.Errorf("адрес %q не IPv6", s)
+	}
+	copy(out[:], ip.To16())
+	return nil
 }
 
 func parseIP4(s string, out *[4]byte) error {
@@ -383,6 +400,12 @@ func (c *Controller) Handle(ev control.Event) error {
 func (c *Controller) target(k control.Key) (string, string) {
 	if n, ok := c.names[k]; ok && n != "" {
 		return "name", n
+	}
+	if k.Family == 6 {
+		if k.LowPort == 443 {
+			return "addr6", net.IP(k.LowIP6[:]).String()
+		}
+		return "addr6", net.IP(k.HighIP6[:]).String()
 	}
 	// Сервер — тот конец, у которого порт 443. Если ни у кого, берём высокий:
 	// выдумывать тут нечего, а ключ канонизирован.
@@ -726,6 +749,12 @@ func (c *Controller) clear(kind, target string) error {
 			return err
 		}
 		return c.conn.DelPlanAddr(ip)
+	case "addr6":
+		var ip [16]byte
+		if err := parseIP6(target, &ip); err != nil {
+			return err
+		}
+		return c.conn.DelPlanAddr6(ip)
 	}
 	return nil
 }
@@ -827,6 +856,12 @@ func (c *Controller) onExchange(ev control.Event, now time.Time) error {
 // serverOf — какая сторона пары сервер. Та, у которой порт 443; если ни у
 // кого, берём высокий конец: ключ канонизирован, выдумывать тут нечего.
 func serverOf(k control.Key) (string, int) {
+	if k.Family == 6 {
+		if k.LowPort == 443 {
+			return net.IP(k.LowIP6[:]).String(), 443
+		}
+		return net.IP(k.HighIP6[:]).String(), int(k.HighPort)
+	}
 	if k.LowPort == 443 {
 		return fmt.Sprintf("%d.%d.%d.%d", k.LowIP[0], k.LowIP[1], k.LowIP[2], k.LowIP[3]), 443
 	}
