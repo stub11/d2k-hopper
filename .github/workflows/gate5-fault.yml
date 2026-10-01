@@ -20,6 +20,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 busybox-static cpio shellcheck
 
+      - name: Lab tool versions
+        run: |
+          qemu-system-x86_64 --version | head -1
+          busybox | head -1
+          shellcheck --version | head -2
+
       - name: Validate Gate 5 lab
         env:
           GATE5_EVIDENCE_DIR: ${{ github.workspace }}/gate5-evidence
