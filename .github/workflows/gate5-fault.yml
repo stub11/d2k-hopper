@@ -20,6 +20,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 busybox-static cpio shellcheck
 
+      - name: Prepare readable QEMU kernel
+        run: |
+          KERNEL=$(ls /boot/vmlinuz-* | tail -1)
+          sudo cp "$KERNEL" "$RUNNER_TEMP/vmlinuz"
+          sudo chmod 0644 "$RUNNER_TEMP/vmlinuz"
+
       - name: Validate Gate 5 lab
         env:
           QEMU_KERNEL: ${{ runner.temp }}/vmlinuz
