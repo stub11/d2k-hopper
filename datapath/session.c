@@ -313,6 +313,11 @@ static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
     }
     /* IPv6 follows the same precedence as IPv4: exact SNI first, then the
      * 128-bit server address, then the explicit session fallback. */
+    d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+    if (!tls.is_client_hello) {
+        out->skipped = "IPv6 не ClientHello";
+        return 0;
+    }
     struct in6_addr target6;
     memcpy(target6.s6_addr, ip6.ip6h->ip6_dst.s6_addr, 16);
     const d2k_plan *use = d2k_plantab_find6(
