@@ -3,7 +3,6 @@
 # rc.unslung sources executable S* scripts in numeric order.
 
 NAME=d2kd
-ROOT=${D2K_ROOT:-/}
 BIN=${D2K_BIN:-/opt/sbin/d2kd}
 PIDFILE=${D2K_PIDFILE:-/var/run/d2kd.pid}
 WATCHDOG_PIDFILE=${D2K_WATCHDOG_PIDFILE:-/var/run/d2kd-watchdog.pid}
