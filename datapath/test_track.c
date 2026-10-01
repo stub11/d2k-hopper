@@ -6,6 +6,7 @@
  * отслеживаться сам собой».
  */
 #include <stdio.h>
+#include <assert.h>
 #include <string.h>
 #include "d2k_track.h"
 
