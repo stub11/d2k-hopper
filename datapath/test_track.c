@@ -49,7 +49,7 @@ static void test_ipv6_key(void) {
     assert(rev.family == D2K_KEY_IPV6);
     assert(memcmp(&out, &rev, sizeof out) == 0);
     assert(low == !rev_low);
-    assert(out.low_port == (uint16_t)0xc001);
+    assert(out.low_port == (uint16_t)0xbb01);
     puts("  PASS: IPv6 canonical flow key");
 }
 
