@@ -2,9 +2,13 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-TMP=${GATE5_EVIDENCE_DIR:-${TMPDIR:-/tmp}/d2k-gate5.$}
+TMP=${GATE5_EVIDENCE_DIR:-$(mktemp -d /tmp/d2k-gate5.XXXXXX)}
 mkdir -p "$TMP"
-if [ "${GATE5_KEEP_EVIDENCE:-0}" != 1 ]; then\n    trap 'rm -rf "$TMP"' EXIT INT TERM\nelse\n    trap 'rm -rf "$TMP"/initramfs "$TMP"/initramfs.gz' EXIT INT TERM\nfi
+if [ "${GATE5_KEEP_EVIDENCE:-0}" != 1 ]; then
+    trap 'rm -rf "$TMP"' EXIT INT TERM
+else
+    trap 'rm -rf "$TMP"/initramfs "$TMP"/initramfs.gz' EXIT INT TERM
+fi
 
 log() { printf '[gate5] %s\n' "$*"; }
 fail() { printf '[gate5] FAIL: %s\n' "$*" >&2; exit 1; }
