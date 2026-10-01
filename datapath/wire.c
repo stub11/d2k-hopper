@@ -76,7 +76,7 @@ static uint32_t pseudo_sum6(const uint8_t *src, const uint8_t *dst, size_t tcp_l
     acc = sum16(dst, 16, acc);
     acc += (uint32_t)(tcp_len >> 16);
     acc += (uint32_t)(tcp_len & 0xffffu);
-    acc += IPPROTO_TCP;
+    acc += 6; /* TCP */
     return acc;
 }
 
