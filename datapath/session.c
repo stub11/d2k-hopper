@@ -164,6 +164,7 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
                                          const struct d2k_ip6_info *ip6,
                                          uint64_t now_ns, uint8_t *buf, size_t bufcap,
                                          d2k_result *out) {
+    (void)len;
     if (!ip6 || !ip6->ip6h || !ip6->tcph) {
         out->skipped = "некорректный разобранный IPv6";
         return 0;
