@@ -65,3 +65,8 @@ ca3b0e68c518491ab7a8a12fb916ed7af1ec457e
 The PR changed the Gate 5 workflow to provide QEMU_KERNEL under the runner temporary directory and made the QEMU prerequisite test require an executable QEMU binary and a readable kernel.
 
 This document does not infer a successful Gate 5 result from the merge. A fresh successful Gate 5 run containing both GATE5-QEMU-BOOT and GATE5-QEMU-NO-OOM is still required before marking the gate green.
+
+
+## Fresh-main verification
+
+This section is intentionally updated only by a verification run against the then-current `main`. The workflow is pull-request triggered; a verification PR is used to execute the complete lab without changing runtime behavior.
