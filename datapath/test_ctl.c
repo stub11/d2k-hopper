@@ -134,6 +134,29 @@ int main(void) {
               "тело команды не то");
     }
 
+    /* --- IPv6 command bodies ------------------------------------------------ */
+    {
+        n_got = 0;
+        uint8_t body[16] = {
+            0x20,0x01,0x0d,0xb8,0,0,0,1,0,0,0,0,0,0,0,1
+        };
+        uint8_t f[32];
+        frame(f, D2K_CMD_SET_ADDR6, body, sizeof body);
+        CHECK(write(cli, f, sizeof f) == (ssize_t)sizeof f, "IPv6 SET команда не записалась");
+        CHECK(d2k_ctl_poll(c, on_cmd, NULL) == 1, "IPv6 SET команда не разобрана");
+        CHECK(n_got == 1 && got[0].type == D2K_CMD_SET_ADDR6, "IPv6 SET тип команды не тот");
+        CHECK(n_got == 1 && got[0].len == 16 && memcmp(got[0].body, body, 16) == 0,
+              "IPv6 SET тело команды повреждено");
+
+        n_got = 0;
+        frame(f, D2K_CMD_DEL_ADDR6, body, sizeof body);
+        CHECK(write(cli, f, sizeof f) == (ssize_t)sizeof f, "IPv6 DEL команда не записалась");
+        CHECK(d2k_ctl_poll(c, on_cmd, NULL) == 1, "IPv6 DEL команда не разобрана");
+        CHECK(n_got == 1 && got[0].type == D2K_CMD_DEL_ADDR6, "IPv6 DEL тип команды не тот");
+        CHECK(n_got == 1 && got[0].len == 16 && memcmp(got[0].body, body, 16) == 0,
+              "IPv6 DEL тело команды повреждено");
+    }
+
     /* --- команда по кускам ------------------------------------------------------
      * Поток не обязан приходить кадрами. Разбор, который на это надеется,
      * ломается ровно тогда, когда команда большая — то есть когда в ней план. */
