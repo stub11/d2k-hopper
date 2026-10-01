@@ -142,7 +142,7 @@ int main(void) {
         };
         uint8_t f[32];
         frame(f, D2K_CMD_SET_ADDR6, body, sizeof body);
-        CHECK(write(cli, f, sizeof f) == (ssize_t)sizeof f, "IPv6 SET команда не записалась");
+        CHECK(write(cli, f, 22) == 22, "IPv6 SET команда не записалась");
         CHECK(d2k_ctl_poll(c, on_cmd, NULL) == 1, "IPv6 SET команда не разобрана");
         CHECK(n_got == 1 && got[0].type == D2K_CMD_SET_ADDR6, "IPv6 SET тип команды не тот");
         CHECK(n_got == 1 && got[0].len == 16 && memcmp(got[0].body, body, 16) == 0,
@@ -150,7 +150,7 @@ int main(void) {
 
         n_got = 0;
         frame(f, D2K_CMD_DEL_ADDR6, body, sizeof body);
-        CHECK(write(cli, f, sizeof f) == (ssize_t)sizeof f, "IPv6 DEL команда не записалась");
+        CHECK(write(cli, f, 22) == 22, "IPv6 DEL команда не записалась");
         CHECK(d2k_ctl_poll(c, on_cmd, NULL) == 1, "IPv6 DEL команда не разобрана");
         CHECK(n_got == 1 && got[0].type == D2K_CMD_DEL_ADDR6, "IPv6 DEL тип команды не тот");
         CHECK(n_got == 1 && got[0].len == 16 && memcmp(got[0].body, body, 16) == 0,
