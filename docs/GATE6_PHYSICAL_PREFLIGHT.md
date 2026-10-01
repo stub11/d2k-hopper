@@ -79,7 +79,15 @@ Then inspect the installed service:
 
 Do not use an activation command until the preflight is clean.
 
-## 6. Panic Button / Emergency Rollback
+## 6. Read-only diagnostics and Panic Button / Emergency Rollback
+
+Before activation, run the read-only diagnostics:
+
+    sh scripts/hopper-detect.sh --dry-run
+
+Keep scripts/rollback.sh available as the emergency rollback command set. It is intentionally separate from the activation path.
+
+## 7. Panic Button / Emergency Rollback
 
 The repository already contains scripts/rollback.sh. Its tested contract is to stop the PID recorded in D2K_PIDFILE and remove the D2K_HOPPER iptables chain from the filter, mangle and nat tables.
 
@@ -111,7 +119,7 @@ Verify:
 
 If any D2K rule remains or d2kd continues running, stop the experiment and use the independent router recovery procedure.
 
-## 7. First physical activation rule
+## 8. First physical activation rule
 
 For the first KN-3810 run:
 
@@ -122,7 +130,7 @@ For the first KN-3810 run:
 5. Do not combine the first D2K activation with unrelated KeeneticOS configuration changes.
 6. Keep the Panic Button commands in a separate terminal ready to paste.
 
-## 8. Stop conditions
+## 9. Stop conditions
 
 Immediately roll back if any of these occur:
 
