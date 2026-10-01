@@ -205,7 +205,7 @@ func (p Plan) Compile() ([]byte, error) {
 // отключения плана и привязки. Выключить план для одной цели и оставить для
 // остальных — обычное дело при разборе жалобы.
 type Binding struct {
-	Kind      string    `json:"kind"` // "name" | "addr"
+	Kind      string    `json:"kind"` // "name" | "addr" | "addr6"
 	Target    string    `json:"target"`
 	PlanID    string    `json:"plan_id"`
 	Level     int       `json:"level"`
@@ -275,7 +275,7 @@ func (c *Catalog) BoxByID(id string) *Box {
 // Lookup ищет подтверждённую привязку цели по имени, затем по адресу.
 // Имя точнее адреса: за одним адресом CDN стоят сотни имён (§3.2).
 func (c *Catalog) Lookup(name, addr string) (*Box, *Binding, *Plan) {
-	for _, kind := range []string{"name", "addr"} {
+	for _, kind := range []string{"name", "addr", "addr6"} {
 		want := name
 		if kind == "addr" {
 			want = addr
@@ -358,7 +358,7 @@ func (c *Catalog) Validate() error {
 			}
 		}
 		for _, bd := range b.Bindings {
-			if bd.Kind != "name" && bd.Kind != "addr" {
+			if bd.Kind != "name" && bd.Kind != "addr" && bd.Kind != "addr6" {
 				return fmt.Errorf("коробка %s: привязка вида %q", b.ID, bd.Kind)
 			}
 			if bd.Target == "" {

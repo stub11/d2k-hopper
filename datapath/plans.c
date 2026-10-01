@@ -4,13 +4,14 @@
 
 #include "d2k_plans.h"
 
-enum { KEY_FREE = 0, KEY_NAME = 1, KEY_ADDR = 2 };
+enum { KEY_FREE = 0, KEY_NAME = 1, KEY_ADDR = 2, KEY_ADDR6 = 3 };
 
 typedef struct {
     uint8_t  kind;
     uint8_t  name_len;
     uint8_t  name[D2K_TARGET_NAME_MAX];
     uint32_t addr_be;
+    uint8_t addr6[16];
     d2k_plan *plan;
 } entry;
 
@@ -79,6 +80,16 @@ static entry *find_name(d2k_plantab *t, const uint8_t *name, size_t len) {
 static entry *find_addr(d2k_plantab *t, uint32_t addr_be) {
     for (size_t i = 0; i < t->cap; i++) {
         if (t->v[i].kind == KEY_ADDR && t->v[i].addr_be == addr_be) {
+            return &t->v[i];
+        }
+    }
+    return NULL;
+}
+
+static entry *find_addr6(d2k_plantab *t, const struct in6_addr *addr) {
+    if (!addr) return NULL;
+    for (size_t i = 0; i < t->cap; i++) {
+        if (t->v[i].kind == KEY_ADDR6 && memcmp(t->v[i].addr6, addr->s6_addr, 16) == 0) {
             return &t->v[i];
         }
     }
@@ -157,8 +168,33 @@ int d2k_plantab_del_name(d2k_plantab *t, const uint8_t *name, size_t len) {
     return drop(t, find_name(t, name, len));
 }
 
+int d2k_plantab_set_addr6(d2k_plantab *t, const struct in6_addr *addr, d2k_plan *p) {
+    if (!t || !addr) {
+        d2k_plan_free(p);
+        return -2;
+    }
+    entry *e = find_addr6(t, addr);
+    if (!e) {
+        e = take_free(t);
+        if (!e) {
+            d2k_plan_free(p);
+            return -1;
+        }
+        t->used++;
+        e->kind = KEY_ADDR6;
+        memcpy(e->addr6, addr->s6_addr, 16);
+    }
+    d2k_plan_free(e->plan);
+    e->plan = p;
+    return 0;
+}
+
 int d2k_plantab_del_addr(d2k_plantab *t, uint32_t addr_be) {
     return t ? drop(t, find_addr(t, addr_be)) : 0;
+}
+
+int d2k_plantab_del_addr6(d2k_plantab *t, const struct in6_addr *addr) {
+    return t ? drop(t, find_addr6(t, addr)) : 0;
 }
 
 const d2k_plan *d2k_plantab_find(const d2k_plantab *t, const uint8_t *name,
@@ -176,6 +212,18 @@ const d2k_plan *d2k_plantab_find(const d2k_plantab *t, const uint8_t *name,
     /* Только теперь по адресу: обратный порядок дал бы плану соседа по CDN
        перебить план, подтверждённый для этого имени. */
     entry *e = find_addr(m, addr_be);
+    return e ? e->plan : NULL;
+}
+
+const d2k_plan *d2k_plantab_find6(const d2k_plantab *t, const uint8_t *name,
+                                  size_t len, const struct in6_addr *addr) {
+    if (!t) return NULL;
+    d2k_plantab *m = (d2k_plantab *)t;
+    if (name && len) {
+        entry *e = find_name(m, name, len);
+        if (e) return e->plan;
+    }
+    entry *e = find_addr6(m, addr);
     return e ? e->plan : NULL;
 }
 

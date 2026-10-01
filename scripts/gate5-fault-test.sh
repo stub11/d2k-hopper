@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+ROOT=$(CDPATH=; cd -- "$(dirname "$0")/.." && pwd)
 TMP=${GATE5_EVIDENCE_DIR:-$(mktemp -d /tmp/d2k-gate5.XXXXXX)}
 mkdir -p "$TMP"
 if [ "${GATE5_KEEP_EVIDENCE:-0}" != 1 ]; then
@@ -112,7 +112,7 @@ kill "$HTTP_PID" 2>/dev/null || true
 log "QEMU 128M resource lab"
 QEMU=${QEMU_BIN:-$(command -v qemu-system-x86_64 || true)}
 KERNEL=${QEMU_KERNEL:-}
-[ -n "$KERNEL" ] || KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | tail -1 || true)
+[ -n "$KERNEL" ] || KERNEL=$(find /boot -maxdepth 1 -type f -name "vmlinuz-*" -print 2>/dev/null | sort | tail -1 || true)
 log "QEMU=$QEMU kernel=$KERNEL cpio=$(command -v cpio || true) busybox=$(command -v busybox || true)"
 if [ -x "$QEMU" ] && [ -n "$KERNEL" ] && [ -r "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
     G="$TMP/initramfs"

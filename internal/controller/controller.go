@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -250,8 +251,23 @@ func (c *Controller) push(kind, target string, tlv []byte) error {
 			return err
 		}
 		return c.conn.SetPlanAddr(ip, tlv)
+	case "addr6":
+		var ip [16]byte
+		if err := parseIP6(target, &ip); err != nil {
+			return err
+		}
+		return c.conn.SetPlanAddr6(ip, tlv)
 	}
 	return fmt.Errorf("привязка вида %q не ставится", kind)
+}
+
+func parseIP6(s string, out *[16]byte) error {
+	ip := net.ParseIP(s)
+	if ip == nil || ip.To16() == nil || ip.To4() != nil {
+		return fmt.Errorf("адрес %q не IPv6", s)
+	}
+	copy(out[:], ip.To16())
+	return nil
 }
 
 func parseIP4(s string, out *[4]byte) error {
@@ -346,7 +362,7 @@ func (c *Controller) Handle(ev control.Event) error {
 	c.expire(now)
 
 	switch ev.Type {
-	case control.EvHello:
+	case control.EvHello, control.EvHello6:
 		c.remember(ev.Key, ev.Name)
 		if ev.Name != "" {
 			// Под наблюдение по объёму ставим сразу: обрыв случится позже,
@@ -359,19 +375,19 @@ func (c *Controller) Handle(ev control.Event) error {
 	case control.EvAck:
 		return c.onAck(ev, now)
 
-	case control.EvShape:
+	case control.EvShape, control.EvShape6:
 		c.onShape(ev)
 
-	case control.EvApplied:
+	case control.EvApplied, control.EvApplied6:
 		if t := c.taskForKey(ev.Key); t != nil && t.Current != nil {
 			t.AppliedCount++
 			c.Applied++
 		}
 
-	case control.EvSuspect:
+	case control.EvSuspect, control.EvSuspect6:
 		return c.onSuspect(ev, now)
 
-	case control.EvExchange:
+	case control.EvExchange, control.EvExchange6:
 		return c.onExchange(ev, now)
 	}
 	return nil
@@ -383,6 +399,12 @@ func (c *Controller) Handle(ev control.Event) error {
 func (c *Controller) target(k control.Key) (string, string) {
 	if n, ok := c.names[k]; ok && n != "" {
 		return "name", n
+	}
+	if k.Family == 6 {
+		if k.LowPort == 443 {
+			return "addr6", net.IP(k.LowIP6[:]).String()
+		}
+		return "addr6", net.IP(k.HighIP6[:]).String()
 	}
 	// Сервер — тот конец, у которого порт 443. Если ни у кого, берём высокий:
 	// выдумывать тут нечего, а ключ канонизирован.
@@ -726,6 +748,12 @@ func (c *Controller) clear(kind, target string) error {
 			return err
 		}
 		return c.conn.DelPlanAddr(ip)
+	case "addr6":
+		var ip [16]byte
+		if err := parseIP6(target, &ip); err != nil {
+			return err
+		}
+		return c.conn.DelPlanAddr6(ip)
 	}
 	return nil
 }
@@ -827,6 +855,12 @@ func (c *Controller) onExchange(ev control.Event, now time.Time) error {
 // serverOf — какая сторона пары сервер. Та, у которой порт 443; если ни у
 // кого, берём высокий конец: ключ канонизирован, выдумывать тут нечего.
 func serverOf(k control.Key) (string, int) {
+	if k.Family == 6 {
+		if k.LowPort == 443 {
+			return net.IP(k.LowIP6[:]).String(), 443
+		}
+		return net.IP(k.HighIP6[:]).String(), int(k.HighPort)
+	}
 	if k.LowPort == 443 {
 		return fmt.Sprintf("%d.%d.%d.%d", k.LowIP[0], k.LowIP[1], k.LowIP[2], k.LowIP[3]), 443
 	}

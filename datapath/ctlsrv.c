@@ -50,8 +50,10 @@ void d2k_ctlsrv_command(void *vctx, uint16_t type, const uint8_t *b, size_t len)
 
     switch (type) {
     case D2K_CMD_SET_NAME:
-    case D2K_CMD_SET_ADDR: {
-        size_t hdr = (type == D2K_CMD_SET_NAME) ? (len ? 1u + b[0] : 1u) : 4u;
+    case D2K_CMD_SET_ADDR:
+    case D2K_CMD_SET_ADDR6: {
+        size_t hdr = (type == D2K_CMD_SET_NAME) ? (len ? 1u + b[0] : 1u) :
+                     (type == D2K_CMD_SET_ADDR6 ? 16u : 4u);
         if (len < hdr) {
             ack(cx, type, 0);
             return;
@@ -71,6 +73,10 @@ void d2k_ctlsrv_command(void *vctx, uint16_t type, const uint8_t *b, size_t len)
         int rc;
         if (type == D2K_CMD_SET_NAME) {
             rc = d2k_plantab_set_name(tab, b + 1, b[0], p);
+        } else if (type == D2K_CMD_SET_ADDR6) {
+            struct in6_addr addr6;
+            memcpy(addr6.s6_addr, b, 16);
+            rc = d2k_plantab_set_addr6(tab, &addr6, p);
         } else {
             uint32_t addr;
             memcpy(&addr, b, 4);
@@ -109,14 +115,22 @@ void d2k_ctlsrv_command(void *vctx, uint16_t type, const uint8_t *b, size_t len)
         d2k_plantab_del_name(tab, b + 1, b[0]);
         ack(cx, type, 1);
         return;
-    case D2K_CMD_DEL_ADDR: {
-        if (len < 4) {
+    case D2K_CMD_DEL_ADDR:
+    case D2K_CMD_DEL_ADDR6: {
+        const size_t need = (type == D2K_CMD_DEL_ADDR6) ? 16u : 4u;
+        if (len < need) {
             ack(cx, type, 0);
             return;
         }
-        uint32_t addr;
-        memcpy(&addr, b, 4);
-        d2k_plantab_del_addr(tab, addr);
+        if (type == D2K_CMD_DEL_ADDR6) {
+            struct in6_addr addr6;
+            memcpy(addr6.s6_addr, b, 16);
+            d2k_plantab_del_addr6(tab, &addr6);
+        } else {
+            uint32_t addr;
+            memcpy(&addr, b, 4);
+            d2k_plantab_del_addr(tab, addr);
+        }
         ack(cx, type, 1);
         return;
     }
@@ -146,19 +160,27 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
         }
         /* Хватает и на приветствие целиком: форма приезжает сюда же. */
         uint8_t body[16 + 2048 + 8];
-        /* IPv4 control ABI is fixed at 12 bytes: low/high IPv4 address
-           followed by the two network-order ports. Do not expose the
-           in-memory d2k_key layout here; IPv6 extended that struct. */
-        memcpy(body + 0, &e->key.low_ip, 4);
-        memcpy(body + 4, &e->key.high_ip, 4);
-        memcpy(body + 8, &e->key.low_port, 2);
-        memcpy(body + 10, &e->key.high_port, 2);
-        size_t n = 12;
+        size_t key_len;
+        if (e->key.family == D2K_KEY_IPV6) {
+            memcpy(body + 0, e->key.low_ip6, 16);
+            memcpy(body + 16, e->key.high_ip6, 16);
+            memcpy(body + 32, &e->key.low_port, 2);
+            memcpy(body + 34, &e->key.high_port, 2);
+            key_len = D2K_CTL_KEY6_LEN;
+        } else {
+            /* Preserve the established IPv4 12-byte event ABI. */
+            memcpy(body + 0, &e->key.low_ip, 4);
+            memcpy(body + 4, &e->key.high_ip, 4);
+            memcpy(body + 8, &e->key.low_port, 2);
+            memcpy(body + 10, &e->key.high_port, 2);
+            key_len = D2K_CTL_KEY4_LEN;
+        }
+        size_t n = key_len;
         uint16_t type = 0;
         switch (e->kind) {
         case D2K_JRN_HELLO_SNI:
         case D2K_JRN_HELLO_NONAME:
-            type = D2K_EV_HELLO;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_HELLO6 : D2K_EV_HELLO;
             body[n++] = e->name_len;
             if (e->name_len) {
                 memcpy(body + n, e->name, e->name_len);
@@ -166,7 +188,7 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             }
             break;
         case D2K_JRN_SUSPECT:
-            type = D2K_EV_SUSPECT;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_SUSPECT6 : D2K_EV_SUSPECT;
             body[n++] = e->code;
             /* Подробности — то, ЧЕМ подозрительный пакет отличался от
                остальных в этом же потоке. Из них складывается отпечаток
@@ -179,10 +201,10 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             body[n++] = (uint8_t)e->d_ipid;
             break;
         case D2K_JRN_PLAN_APPLIED:
-            type = D2K_EV_APPLIED;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_APPLIED6 : D2K_EV_APPLIED;
             break;
         case D2K_JRN_PLAN_REFUSED:
-            type = D2K_EV_REFUSED;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_REFUSED6 : D2K_EV_REFUSED;
             break;
         case D2K_JRN_SHAPE: {
             /* Байты приветствия лежат не в журнале, а в ловушке сессии:
@@ -192,13 +214,13 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             if (!sh || slen == 0 || n + slen > sizeof body) {
                 continue;
             }
-            type = D2K_EV_SHAPE;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_SHAPE6 : D2K_EV_SHAPE;
             memcpy(body + n, sh, slen);
             n += slen;
             break;
         }
         case D2K_JRN_EXCHANGE:
-            type = D2K_EV_EXCHANGE;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_EXCHANGE6 : D2K_EV_EXCHANGE;
             body[n++] = e->code;            /* тип первой TLS-записи */
             body[n++] = e->d_tos;           /* набор встреченных типов */
             body[n++] = (uint8_t)(e->num >> 24);

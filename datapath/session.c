@@ -311,10 +311,23 @@ static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
         out->skipped = "IPv6 не ClientHello";
         return 0;
     }
-    /* IPv6 currently uses the session fallback plan. Per-target IPv6 plan keys
-     * belong to the controller/catalog vertical and are intentionally not
-     * invented here. */
-    const d2k_plan *use = s->plan;
+    /* IPv6 follows the same precedence as IPv4: exact SNI first, then the
+     * 128-bit server address, then the explicit session fallback. */
+    d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+    if (!tls.is_client_hello) {
+        out->skipped = "IPv6 не ClientHello";
+        return 0;
+    }
+    struct in6_addr target6;
+    memcpy(target6.s6_addr, ip6.ip6h->ip6_dst.s6_addr, 16);
+    const d2k_plan *use = d2k_plantab_find6(
+        s->plans,
+        tls.have_sni ? ip6.payload + tls.sni_off : NULL,
+        tls.have_sni ? tls.sni_len : 0,
+        &target6);
+    if (!use) {
+        use = s->plan;
+    }
     if (!use) {
         out->skipped = "плана для IPv6 цели нет";
         return 0;

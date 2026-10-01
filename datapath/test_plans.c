@@ -159,6 +159,38 @@ int main(void) {
         CHECK(d2k_plantab_count(NULL) == 0, "счётчик нулевой таблицы");
     }
 
+    /* --- IPv6 address key: 128 bits, no heap on lookup -------------------- */
+    {
+        d2k_plantab *t = d2k_plantab_new(8);
+        struct in6_addr a6 = { .s6_addr = {
+            0x20,0x01,0x0d,0xb8,0x00,0x00,0x00,0x01,
+            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01
+        }};
+        d2k_plan *p = mkplan();
+        CHECK(d2k_plantab_set_addr6(t, &a6, p) == 0, "IPv6 план по адресу не встал");
+        CHECK(d2k_plantab_find6(t, NULL, 0, &a6) == p, "IPv6 план не нашёлся");
+        CHECK(d2k_plantab_find6(t, (const uint8_t *)"other.example", 13, &a6) == p,
+              "IPv6 fallback по адресу не сработал");
+        CHECK(d2k_plantab_del_addr6(t, &a6) == 1, "IPv6 план не удалился");
+        CHECK(d2k_plantab_find6(t, NULL, 0, &a6) == NULL, "удалённый IPv6 план находится");
+        d2k_plantab_free(t);
+    }
+
+    /* --- IPv6 имя важнее адреса -------------------------------------------- */
+    {
+        d2k_plantab *t = d2k_plantab_new(8);
+        struct in6_addr a6 = { .s6_addr = {
+            0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,2
+        }};
+        const uint8_t nm[] = "v6.example";
+        d2k_plan *by_name = mkplan(), *by_addr = mkplan();
+        d2k_plantab_set_name(t, nm, sizeof nm - 1, by_name);
+        d2k_plantab_set_addr6(t, &a6, by_addr);
+        CHECK(d2k_plantab_find6(t, nm, sizeof nm - 1, &a6) == by_name,
+              "IPv6 адрес перебил имя");
+        d2k_plantab_free(t);
+    }
+
     if (fails) {
         printf("ПРОВАЛОВ: %d\n", fails);
         return 1;
