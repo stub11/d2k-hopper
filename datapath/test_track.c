@@ -49,6 +49,8 @@ static void test_ipv6_key(void) {
     assert(memcmp(&out, &rev, sizeof out) == 0);
     assert(low == !rev_low);
     assert(out.low_port == (uint16_t)0x01bb);
+    assert(memcmp(&out.low_addr.v6, a, 16) == 0 || memcmp(&out.low_addr.v6, b, 16) == 0);
+    assert(memcmp(&out.high_addr.v6, a, 16) == 0 || memcmp(&out.high_addr.v6, b, 16) == 0);
     puts("  PASS: IPv6 canonical flow key");
 }
 

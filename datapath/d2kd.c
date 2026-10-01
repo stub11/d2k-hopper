@@ -297,8 +297,8 @@ static void print_journal(const d2k_session *s, uint64_t start) {
            о направлении. */
         if (e->key.family == D2K_KEY_IPV6) {
             char la[INET6_ADDRSTRLEN], ha[INET6_ADDRSTRLEN];
-            if (inet_ntop(AF_INET6, e->key.low_ip6, la, sizeof la) &&
-                inet_ntop(AF_INET6, e->key.high_ip6, ha, sizeof ha)) {
+            if (inet_ntop(AF_INET6, e->key.low_addr.v6.s6_addr, la, sizeof la) &&
+                inet_ntop(AF_INET6, e->key.high_addr.v6.s6_addr, ha, sizeof ha)) {
                 printf("  %6" PRIu64 " мс  [%s]:%u - [%s]:%u  %s%s%s%s\\n",
                        (e->at_ns - start) / NS_PER_MS, la, port_of(&e->key.low_port),
                        ha, port_of(&e->key.high_port), jrn_kind(e->kind),
@@ -306,8 +306,8 @@ static void print_journal(const d2k_session *s, uint64_t start) {
                        e->note ? e->note : "");
             }
         } else {
-            const uint8_t *la = (const uint8_t *)&e->key.low_ip;
-            const uint8_t *ha = (const uint8_t *)&e->key.high_ip;
+            const uint8_t *la = (const uint8_t *)&e->key.low_addr.v4;
+            const uint8_t *ha = (const uint8_t *)&e->key.high_addr.v4;
             printf("  %6" PRIu64 " мс  %u.%u.%u.%u:%u - %u.%u.%u.%u:%u  %s%s%s%s\\n",
                    (e->at_ns - start) / NS_PER_MS,
                    la[0], la[1], la[2], la[3], port_of(&e->key.low_port),
