@@ -2,6 +2,7 @@ package control
 
 import (
     "encoding/binary"
+    "io"
     "net"
     "os"
     "path/filepath"
@@ -21,10 +22,10 @@ func TestSetPlanAddr6WireFormat(t *testing.T) {
         if err != nil { return }
         defer c.Close()
         hdr := make([]byte, 6)
-        if _, err := c.Read(hdr); err != nil { return }
+        if _, err := io.ReadFull(c, hdr); err != nil { return }
         n := int(binary.BigEndian.Uint32(hdr[:4])) - 2
         body := make([]byte, n)
-        if _, err := c.Read(body); err != nil { return }
+        if _, err := io.ReadFull(c, body); err != nil { return }
         got <- append(hdr, body...)
     }()
 
