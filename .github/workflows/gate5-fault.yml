@@ -21,7 +21,11 @@ jobs:
           sudo apt-get install -y -qq qemu-system-x86 busybox-static cpio shellcheck
 
       - name: Validate Gate 5 lab
+        env:
+          GATE5_EVIDENCE_DIR: ${{ github.workspace }}/gate5-evidence
+          GATE5_KEEP_EVIDENCE: '1'
         run: |
+          mkdir -p gate5-evidence
           chmod +x scripts/gate5-fault-test.sh scripts/rollback.sh scripts/S99d2k
           scripts/gate5-fault-test.sh
 
@@ -30,5 +34,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gate5-fault-evidence
-          path: /tmp/d2k-gate5.*/qemu.log
+          path: gate5-evidence/qemu.log
           if-no-files-found: ignore
