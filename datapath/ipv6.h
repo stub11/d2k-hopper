@@ -118,7 +118,7 @@ static inline uint16_t d2k_tcp_checksum_ipv6(const struct in6_addr *src,
         sum += ((uint32_t)p[i] << 8) | p[i + 1];
     sum += (uint32_t)(tcp_len >> 16);
     sum += (uint32_t)(tcp_len & 0xffffu);
-    sum += IPPROTO_TCP;
+    sum += 6u; /* TCP */
 
     for (i = 0; i + 1 < tcp_len; i += 2)
         sum += ((uint32_t)tcp_data[i] << 8) | tcp_data[i + 1];
