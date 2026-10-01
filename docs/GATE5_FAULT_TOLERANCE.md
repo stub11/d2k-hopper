@@ -1,72 +1,63 @@
 # Gate 5 — Fault Tolerance Evidence
 
-## Scope
+## Final verified result
 
-This document records the GitHub Actions evidence actually available for the Gate 5 fault-tolerance lab. It intentionally distinguishes individual checks that passed from the overall Gate 5 result.
-
-## Key run
+Gate 5 is SUCCESS on the final pre-Gate-6 verification tree.
 
 - Workflow: Gate 5 — Fault tolerance & resource limits
-- Run number: 5
-- Run ID: 36834596712
-- Event: pull_request
-- Branch: fix-gate5-qemu-kernel
-- Head SHA: c931aaa314b3472103e475ad11013a302a3be6f2
-- Started: 2026-10-01 08:09:37 UTC
-- Finished: 2026-10-01 08:10:15 UTC
-- Overall conclusion: failure
+- Run ID: 36895720915
+- Run number: 40
 - Job: fault-lab
-- Job conclusion: failure
+- Head SHA: 261740286a7662dfcc98002254e16b4fd70d40dd
+- Merged main SHA: 6884a35c9b2d85cc449ab5aa7328808595381f46
+- Conclusion: SUCCESS
 
-## Evidence from the key log
+## QEMU serial evidence
 
-The Gate 5 validation step reached these stages successfully:
+The 128 MiB QEMU resource lab produced the required markers:
 
-1. Static shell validation — passed.
-2. Entware autostart + watchdog recovery — the test started the daemon, sent SIGKILL (kill -9) to the recorded PID, and detected a new live PID before continuing.
-3. Rollback — the rollback test completed and verified the D2K iptables chain operations and PID-file removal.
-4. Fail-open HTTP continuity after d2kd SIGKILL — HTTP returned successfully before and after the daemon was killed.
+    GATE5-QEMU-BOOT
+    GATE5-QEMU-LOAD-OK
+    GATE5-QEMU-NO-OOM
 
-Relevant log sequence:
+The successful serial sequence demonstrates that the minimal initramfs booted, completed the bounded resource load, and did not report the configured OOM signatures.
 
-    [gate5] static shell validation
+The final QEMU test uses a 40 MiB tmpfs mounted at /tmp while QEMU remains constrained to -m 128M.
+
+## Fault-tolerance evidence
+
+The same successful Gate 5 job executed:
+
     [gate5] Entware autostart + watchdog recovery
     [gate5] rollback removes D2K iptables chain and stops service
     [gate5] fail-open HTTP continuity after d2kd SIGKILL
 
-The run then entered the 128M QEMU stage:
+The watchdog test starts the deterministic d2kd stand-in, sends SIGKILL (kill -9) to its recorded PID, and requires a different live PID before continuing.
 
-    [gate5] QEMU 128M resource lab
-    [gate5] QEMU=/usr/bin/qemu-system-x86_64 kernel=/home/runner/work/_temp/vmlinuz cpio=/usr/bin/cpio busybox=/usr/bin/busybox
-    [gate5] FAIL: QEMU resource lab prerequisites missing (qemu-system-x86_64, kernel, cpio, busybox)
-    ##[error]Process completed with exit code 1.
+The rollback test verifies removal of the D2K_HOPPER iptables chain operations and PID-file cleanup.
 
-The workflow therefore did not produce the required QEMU evidence artifact. The artifact query for Run ID 36834596712 returned no artifacts.
+The fail-open test verifies HTTP continuity before and after a d2kd SIGKILL.
 
-## Gate 5 status
+The job ended with:
 
-NOT PASSED by this recorded run.
+    [gate5] PASS: fault injection, watchdog/autostart, rollback and 128M QEMU resource checks
 
-The available evidence proves:
+## CI corroboration
 
-- SIGKILL / watchdog restart: PASS
-- Entware-style autostart contract: PASS
-- rollback / D2K chain cleanup: PASS
-- fail-open HTTP continuity after daemon SIGKILL: PASS
-- 128M QEMU boot + no-OOM evidence: NOT VERIFIED
-- Overall Gate 5: FAIL
+For the same head SHA 261740286a7662dfcc98002254e16b4fd70d40dd, CI Run ID 36895720911 / Run #199 was SUCCESS.
 
-## Important history
+Successful CI jobs included:
 
-PR #39 (fix(gate5): make 128M QEMU kernel readable) was subsequently merged to main as:
+- Go — format, vet, tests
+- Datapath on C — target-architecture builds
+- C sanitizer tests (ASan/UBSan test step)
+- all-architecture builds
+- scripts / ShellCheck
 
-ca3b0e68c518491ab7a8a12fb916ed7af1ec457e
+Gate 2 Run 36895720904, Gate 3 Run 36895721037, and Gate 4 Run 36895721229 were also SUCCESS on this verification SHA.
 
-The PR changed the Gate 5 workflow to provide QEMU_KERNEL under the runner temporary directory and made the QEMU prerequisite test require an executable QEMU binary and a readable kernel.
+## Status
 
-This document does not infer a successful Gate 5 result from the merge. A fresh successful Gate 5 run containing both GATE5-QEMU-BOOT and GATE5-QEMU-NO-OOM is still required before marking the gate green.
+Gate 5: GREEN
 
-
-## Fresh-main verification
-
-This section is intentionally updated only by a verification run against the then-current `main`. The workflow is pull-request triggered; a verification PR is used to execute the complete lab without changing runtime behavior.
+This document records the successful verification rather than inferring success from a merge alone.
