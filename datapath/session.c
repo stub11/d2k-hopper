@@ -160,23 +160,19 @@ static uint32_t rd32(const uint8_t *p) {
            (uint32_t)p[2] << 8 | (uint32_t)p[3];
 }
 
-static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
-                                  uint64_t now_ns, uint8_t *buf, size_t bufcap, d2k_result *out) {
-    struct d2k_ip6_info ip6;
-    int rc = d2k_parse_ipv6(pkt, len, &ip6);
-    if (rc == D2K_IP6_ERR) {
-        out->skipped = "некорректный IPv6";
-        return 0;
-    }
-    if (rc != D2K_IP6_TCP) {
-        out->skipped = "IPv6 не TCP";
+static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t len,
+                                         const struct d2k_ip6_info *ip6,
+                                         uint64_t now_ns, uint8_t *buf, size_t bufcap,
+                                         d2k_result *out) {
+    if (!ip6 || !ip6->ip6h || !ip6->tcph) {
+        out->skipped = "некорректный разобранный IPv6";
         return 0;
     }
 
-    const uint8_t *t = (const uint8_t *)ip6.tcph;
+    const uint8_t *t = (const uint8_t *)ip6->tcph;
     size_t tcp_off = (size_t)(t - pkt);
-    size_t ip6_end = sizeof(struct ip6_hdr) + (size_t)ntohs(ip6.ip6h->ip6_plen);
-    size_t payload_off = ip6.payload ? (size_t)(ip6.payload - pkt) : ip6_end;
+    size_t ip6_end = sizeof(struct ip6_hdr) + (size_t)ntohs(ip6->ip6h->ip6_plen);
+    size_t payload_off = ip6->payload ? (size_t)(ip6.payload - pkt) : ip6_end;
     if (tcp_off > ip6_end || payload_off > ip6_end || ip6.payload_len > ip6_end - payload_off) {
         out->skipped = "длина IPv6 не сходится";
         return 0;
@@ -217,7 +213,7 @@ static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
     } else {
         if (!fl->rev_profiled) {
             fl->rev_profiled = 1;
-            fl->rev_ttl = ip6.hop_limit;
+            fl->rev_ttl = ip6->hop_limit;
             fl->rev_tos = 0;
         }
         fl->rev_pkts++;
@@ -403,6 +399,28 @@ static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
     d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_PLAN_APPLIED, 0, 0, NULL, NULL, 0, NULL);
     d2k_actions_free(&acts);
     return 0;
+}
+
+int d2k_session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
+                            const struct d2k_ip6_info *ip6,
+                            uint64_t now_ns, uint8_t *buf, size_t bufcap,
+                            d2k_result *out) {
+    return session_packet_ipv6_parsed(s, pkt, len, ip6, now_ns, buf, bufcap, out);
+}
+
+static int session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
+                                uint64_t now_ns, uint8_t *buf, size_t bufcap, d2k_result *out) {
+    struct d2k_ip6_info ip6;
+    int rc = d2k_parse_ipv6(pkt, len, &ip6);
+    if (rc == D2K_IP6_ERR) {
+        out->skipped = "некорректный IPv6";
+        return 0;
+    }
+    if (rc != D2K_IP6_TCP) {
+        out->skipped = "IPv6 не TCP";
+        return 0;
+    }
+    return d2k_session_packet_ipv6(s, pkt, len, &ip6, now_ns, buf, bufcap, out);
 }
 
 int d2k_session_packet(d2k_session *s, const uint8_t *pkt, size_t len,
