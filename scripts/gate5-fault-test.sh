@@ -121,7 +121,10 @@ if [ -n "$QEMU" ] && [ -n "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && comm
     ln -s busybox "$G/bin/sh"
     ln -s busybox "$G/bin/dmesg"
     ln -s busybox "$G/bin/grep"
-    ln -s busybox "$G/bin/awk"\n    ln -s busybox "$G/bin/dd"\n    ln -s busybox "$G/bin/mount"\n    ln -s busybox "$G/bin/poweroff"
+    ln -s busybox "$G/bin/awk"
+    ln -s busybox "$G/bin/dd"
+    ln -s busybox "$G/bin/mount"
+    ln -s busybox "$G/bin/poweroff"
     cat >"$G/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
