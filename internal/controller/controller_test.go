@@ -11,10 +11,10 @@ package controller_test
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
