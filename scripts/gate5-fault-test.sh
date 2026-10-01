@@ -116,21 +116,25 @@ KERNEL=${QEMU_KERNEL:-}
 log "QEMU=$QEMU kernel=$KERNEL cpio=$(command -v cpio || true) busybox=$(command -v busybox || true)"
 if [ -n "$QEMU" ] && [ -n "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
     G="$TMP/initramfs"
-    mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev"
+    mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev" "$G/tmp"
     cp "$(command -v busybox)" "$G/bin/busybox"
     ln -s busybox "$G/bin/sh"
     ln -s busybox "$G/bin/dmesg"
     ln -s busybox "$G/bin/grep"
-    ln -s busybox "$G/bin/awk"\n    ln -s busybox "$G/bin/dd"\n    ln -s busybox "$G/bin/mount"\n    ln -s busybox "$G/bin/poweroff"
+    ln -s busybox "$G/bin/awk"
+    ln -s busybox "$G/bin/dd"
+    ln -s busybox "$G/bin/mount"
+    ln -s busybox "$G/bin/poweroff"
     cat >"$G/init" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+[ -e /dev/zero ] || /bin/busybox mknod -m 666 /dev/zero c 1 5
 echo GATE5-QEMU-BOOT
 (
     i=0
-    while [ "$i" -lt 20 ]; do
+    while [ "$i" -lt 10 ]; do
         dd if=/dev/zero of="/tmp/load-$i" bs=1M count=4 2>/dev/null || exit 2
         i=$((i + 1))
     done
