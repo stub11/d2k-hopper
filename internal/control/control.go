@@ -34,8 +34,8 @@ const (
 	EvSuspect6 uint16 = 0x000A
 	EvApplied6 uint16 = 0x000B
 	EvRefused6 uint16 = 0x000C
-	EvExchange6 uint16 = 0x000D
-	EvShape6   uint16 = 0x000E
+	EvExchange6 uint16 = 0x000D 
+	EvShape6    uint16 = 0x000E
 
 	CmdSetName  uint16 = 0x0081
 	CmdSetAddr  uint16 = 0x0082
@@ -257,7 +257,9 @@ func (c *Conn) SetPlanAddr6(ip [16]byte, tlv []byte) error {
 }
 
 func (c *Conn) DelPlanAddr(ip [4]byte) error { return c.send(CmdDelAddr, ip[:]) }
-func (c *Conn) DelPlanAddr6(ip [16]byte) error { return c.send(CmdDelAddr6, ip[:]) }
+func (c *Conn) DelPlanAddr6(ip [16]byte) error {
+	return c.send(CmdDelAddr6, ip[:])
+}
 
 // WantShape просит у датапата форму приветствия цели.
 //
@@ -296,7 +298,9 @@ func (c *Conn) Next() (Event, error) {
 	// разбору, и сборке.
 	var rest []byte
 	if ev.Type >= EvHello6 && ev.Type <= EvShape6 {
-		if len(body) < 36 { return ev, errors.New("IPv6 событие короче 36-байтового ключа") }
+		if len(body) < 36 {
+			return ev, errors.New("IPv6 событие короче 36-байтового ключа")
+		}
 		ev.Key.Family = 6
 		copy(ev.Key6.LowIP6[:], body[0:16])
 		copy(ev.Key6.HighIP6[:], body[16:32])
@@ -309,7 +313,9 @@ func (c *Conn) Next() (Event, error) {
 		rest = body[36:]
 	} else {
 		key, err := parseKey(body)
-		if err != nil { return ev, err }
+		if err != nil {
+			return ev, err
+		}
 		ev.Key = key
 		rest = body[12:]
 	}
