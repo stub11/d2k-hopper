@@ -358,7 +358,7 @@ func (c *Catalog) Validate() error {
 			}
 		}
 		for _, bd := range b.Bindings {
-			if bd.Kind != "name" && bd.Kind != "addr" {
+			if bd.Kind != "name" && bd.Kind != "addr" && bd.Kind != "addr6" {
 				return fmt.Errorf("коробка %s: привязка вида %q", b.ID, bd.Kind)
 			}
 			if bd.Target == "" {
