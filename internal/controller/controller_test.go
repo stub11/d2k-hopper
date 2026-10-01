@@ -11,10 +11,10 @@ package controller_test
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -31,6 +31,7 @@ import (
 	"github.com/necronicle/d2k/internal/controller"
 	"github.com/necronicle/d2k/internal/plan"
 	"github.com/necronicle/d2k/internal/probe"
+
 )
 
 type rig struct {
