@@ -166,9 +166,7 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             memcpy(body + 16, e->key.high_ip6, 16);
             memcpy(body + 32, &e->key.low_port, 2);
             memcpy(body + 34, &e->key.high_port, 2);
-            body[0] = D2K_KEY_IPV6;
-            memmove(body + 1, body, D2K_CTL_KEY6_LEN);
-            key_len = D2K_CTL_KEY6_LEN + 1;
+            key_len = D2K_CTL_KEY6_LEN;
         } else {
             /* Preserve the established IPv4 12-byte event ABI. */
             memcpy(body + 0, &e->key.low_ip, 4);
@@ -182,7 +180,7 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
         switch (e->kind) {
         case D2K_JRN_HELLO_SNI:
         case D2K_JRN_HELLO_NONAME:
-            type = D2K_EV_HELLO;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_HELLO6 : D2K_EV_HELLO;
             body[n++] = e->name_len;
             if (e->name_len) {
                 memcpy(body + n, e->name, e->name_len);
@@ -190,7 +188,7 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             }
             break;
         case D2K_JRN_SUSPECT:
-            type = D2K_EV_SUSPECT;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_SUSPECT6 : D2K_EV_SUSPECT;
             body[n++] = e->code;
             /* Подробности — то, ЧЕМ подозрительный пакет отличался от
                остальных в этом же потоке. Из них складывается отпечаток
@@ -203,10 +201,10 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             body[n++] = (uint8_t)e->d_ipid;
             break;
         case D2K_JRN_PLAN_APPLIED:
-            type = D2K_EV_APPLIED;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_APPLIED6 : D2K_EV_APPLIED;
             break;
         case D2K_JRN_PLAN_REFUSED:
-            type = D2K_EV_REFUSED;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_REFUSED6 : D2K_EV_REFUSED;
             break;
         case D2K_JRN_SHAPE: {
             /* Байты приветствия лежат не в журнале, а в ловушке сессии:
@@ -216,13 +214,13 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
             if (!sh || slen == 0 || n + slen > sizeof body) {
                 continue;
             }
-            type = D2K_EV_SHAPE;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_SHAPE6 : D2K_EV_SHAPE;
             memcpy(body + n, sh, slen);
             n += slen;
             break;
         }
         case D2K_JRN_EXCHANGE:
-            type = D2K_EV_EXCHANGE;
+            type = (e->key.family == D2K_KEY_IPV6) ? D2K_EV_EXCHANGE6 : D2K_EV_EXCHANGE;
             body[n++] = e->code;            /* тип первой TLS-записи */
             body[n++] = e->d_tos;           /* набор встреченных типов */
             body[n++] = (uint8_t)(e->num >> 24);
