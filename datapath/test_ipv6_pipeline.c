@@ -82,7 +82,7 @@ static void test_parser_and_key(void)
     uint8_t pkt[256];
     size_t tcp_len = build_tcp(tcp, 0x18, payload, sizeof payload);
 
-    size_t n = build_ipv6(pkt, IPPROTO_TCP, NULL, 0, tcp, tcp_len);
+    size_t n = build_ipv6(pkt, 6, NULL, 0, tcp, tcp_len);
     struct d2k_ip6_info info;
     int rc = d2k_parse_ipv6(pkt, n, &info);
     CHECK(rc == D2K_IP6_TCP, "plain IPv6 TCP was not parsed");
