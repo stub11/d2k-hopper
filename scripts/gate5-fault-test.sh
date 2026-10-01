@@ -149,7 +149,6 @@ EOF
     chmod +x "$G/init"
     (cd "$G" && find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -1 >"$TMP/initramfs.gz")
     timeout 45 "$QEMU" -nographic -no-reboot -m 128M -kernel "$KERNEL"         -initrd "$TMP/initramfs.gz" -append 'console=ttyS0 rdinit=/init'         >"$TMP/qemu.log" 2>&1 || true
-    cat "$TMP/qemu.log" >&2 || true
     grep -q 'GATE5-QEMU-BOOT' "$TMP/qemu.log"
     grep -q 'GATE5-QEMU-NO-OOM' "$TMP/qemu.log"
 else
