@@ -10,11 +10,13 @@ package controller_test
 
 import (
 	"bufio"
+	"encoding/binary"
 	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -588,4 +590,61 @@ func TestВопросПредшествуетКандидатам(t *testing.T) 
 	if box, _, _ := r.store.Catalog().Lookup("linkedin.com", ""); box == nil {
 		t.Fatalf("после верного ответа решение не найдено:\n%s", logs)
 	}
+}
+
+
+func TestSyncPushesIPv6AddressBinding(t *testing.T) {
+    cat := catalog.New()
+    fp := catalog.Fingerprint{
+        Method: catalog.FingerprintMethod,
+        Signals: []catalog.Signal{{Kind: "rst", TTL: 127, IPID: 54321, ToS: 0x88, Seen: 1}},
+    }
+    pl := catalog.Plan{
+        ID: "p1", Proto: "tls",
+        Text: "d2k-plan 1 1\nid 00000000000000000000000000000042\npayload 1 deadbe\npoison 1 ttl=3 badsum\nfake payload=1 poison=1 repeats=2 gap_us=78000 place=before\norder forward\n",
+        Enabled: true,
+    }
+    now := time.Now()
+    if _, _, err := cat.Confirm(fp, pl, "addr6", "2001:db8::1", catalog.LevelHandshake, now); err != nil {
+        t.Fatal(err)
+    }
+
+    dir := t.TempDir()
+    catPath := filepath.Join(dir, "catalog.json")
+    data, err := json.Marshal(cat)
+    if err != nil { t.Fatal(err) }
+    if err := os.WriteFile(catPath, data, 0600); err != nil { t.Fatal(err) }
+    store, err := catalog.Open(catPath)
+    if err != nil { t.Fatal(err) }
+
+    sock := filepath.Join(dir, "ctl.sock")
+    ln, err := net.Listen("unix", sock)
+    if err != nil { t.Fatal(err) }
+    defer ln.Close()
+    got := make(chan []byte, 1)
+    go func() {
+        c, err := ln.Accept()
+        if err != nil { return }
+        defer c.Close()
+        hdr := make([]byte, 6)
+        if _, err := io.ReadFull(c, hdr); err != nil { return }
+        n := int(binary.BigEndian.Uint32(hdr[:4])) - 2
+        body := make([]byte, n)
+        if _, err := io.ReadFull(c, body); err != nil { return }
+        got <- append(hdr, body...)
+    }()
+
+    conn, err := control.Dial(sock)
+    if err != nil { t.Fatal(err) }
+    defer conn.Close()
+    c := controller.New(conn, store, io.Discard)
+    if err := c.Sync(); err != nil { t.Fatal(err) }
+
+    frame := <-got
+    if binary.BigEndian.Uint16(frame[4:6]) != control.CmdSetAddr6 {
+        t.Fatalf("command %#x", binary.BigEndian.Uint16(frame[4:6]))
+    }
+    if len(frame) < 22 || string(frame[6:22]) != string(net.ParseIP("2001:db8::1").To16()) {
+        t.Fatal("IPv6 binding was not encoded as 16 address bytes")
+    }
 }
