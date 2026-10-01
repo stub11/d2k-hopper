@@ -173,15 +173,15 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
     const uint8_t *t = (const uint8_t *)ip6->tcph;
     size_t tcp_off = (size_t)(t - pkt);
     size_t ip6_end = sizeof(struct ip6_hdr) + (size_t)ntohs(ip6->ip6h->ip6_plen);
-    size_t payload_off = ip6->payload ? (size_t)(ip6.payload - pkt) : ip6_end;
-    if (tcp_off > ip6_end || payload_off > ip6_end || ip6.payload_len > ip6_end - payload_off) {
+    size_t payload_off = ip6->payload ? (size_t)(ip6->payload - pkt) : ip6_end;
+    if (tcp_off > ip6_end || payload_off > ip6_end || ip6->payload_len > ip6_end - payload_off) {
         out->skipped = "длина IPv6 не сходится";
         return 0;
     }
 
     d2k_key key;
-    int src_is_low = d2k_key_make6(&key, ip6.ip6h->ip6_src.s6_addr,
-                                   ip6.ip6h->ip6_dst.s6_addr,
+    int src_is_low = d2k_key_make6(&key, ip6->ip6h->ip6_src.s6_addr,
+                                   ip6->ip6h->ip6_dst.s6_addr,
                                    t, t + 2);
     uint8_t flags = t[13];
     int syn = (flags & 0x02) != 0;
@@ -207,7 +207,7 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
     }
     int fwd = (src_is_low == fl->init_low);
     const uint32_t rev_before = fl->rev_after_hello;
-    size_t total = (size_t)(ip6.payload - pkt) + ip6.payload_len;
+    size_t total = (size_t)(ip6->payload - pkt) + ip6->payload_len;
     if (fwd) {
         fl->fwd_pkts++;
         fl->fwd_bytes += total;
@@ -221,11 +221,11 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
         fl->rev_bytes += total;
         if (fl->saw_hello) {
             fl->rev_after_hello++;
-            if (ip6.payload_len > 0) {
-                uint8_t t0 = ip6.payload[0];
+            if (ip6->payload_len > 0) {
+                uint8_t t0 = ip6->payload[0];
                 if (fl->rev_first_type == 0) fl->rev_first_type = t0;
                 if (t0 >= 20 && t0 <= 23) fl->rev_types |= (uint8_t)(1u << (t0 - 20));
-                fl->rev_payload_after_hello += (uint32_t)ip6.payload_len;
+                fl->rev_payload_after_hello += (uint32_t)ip6->payload_len;
             }
         }
     }
@@ -246,7 +246,7 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
     if (rst && !fwd && fl->saw_hello && rev_before == 0) {
         d2k_jrn_detail det;
         memset(&det, 0, sizeof det);
-        det.ttl = ip6.hop_limit;
+        det.ttl = ip6->hop_limit;
         det.ref_ttl = fl->rev_profiled ? fl->rev_ttl : 0;
         suspect(s, now_ns, &key, fl, D2K_SUSPECT_RST, &det);
     }
@@ -256,7 +256,7 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
         return 0;
     }
 
-    if (ip6.payload_len == 0) {
+    if (ip6->payload_len == 0) {
         out->skipped = "IPv6 без полезной нагрузки";
         return 0;
     }
@@ -272,17 +272,17 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
     if (!fl->saw_hello && fwd && fl->fwd_pkts <= D2K_HELLO_WINDOW) {
         d2k_tls_info tls;
         memset(&tls, 0, sizeof tls);
-        d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+        d2k_tls_parse(ip6->payload, ip6->payload_len, &tls);
         if (!tls.is_client_hello) {
             s->pay_not_hello++;
-            s->last_nonhello_first = ip6.payload[0];
+            s->last_nonhello_first = ip6->payload[0];
         } else {
-            if (ip6.payload_len <= sizeof s->last_hello) {
-                memcpy(s->last_hello, ip6.payload, ip6.payload_len);
-                s->last_hello_len = ip6.payload_len;
+            if (ip6->payload_len <= sizeof s->last_hello) {
+                memcpy(s->last_hello, ip6->payload, ip6->payload_len);
+                s->last_hello_len = ip6->payload_len;
                 s->last_name_len = 0;
                 if (tls.have_sni && tls.sni_len <= sizeof s->last_name) {
-                    memcpy(s->last_name, ip6.payload + tls.sni_off, tls.sni_len);
+                    memcpy(s->last_name, ip6->payload + tls.sni_off, tls.sni_len);
                     s->last_name_len = tls.sni_len;
                 }
             }
@@ -293,7 +293,7 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
             if (tls.have_sni) {
                 s->with_sni++;
                 d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_HELLO_SNI, 0, 0,
-                                NULL, ip6.payload + tls.sni_off, tls.sni_len, NULL);
+                                NULL, ip6->payload + tls.sni_off, tls.sni_len, NULL);
             } else {
                 d2k_journal_add(s->jrn, now_ns, &key, D2K_JRN_HELLO_NONAME, 0, 0,
                                 NULL, NULL, 0, NULL);
@@ -328,15 +328,15 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
 
     /* Re-parse the first payload only for the SNI offsets consumed by the
      * existing executor; no packet bytes are copied into a heap object. */
-    d2k_tls_parse(ip6.payload, ip6.payload_len, &tls);
+    d2k_tls_parse(ip6->payload, ip6->payload_len, &tls);
     if (!tls.is_client_hello) {
         out->skipped = "IPv6 не ClientHello";
         return 0;
     }
     d2k_pkt in;
     memset(&in, 0, sizeof in);
-    in.payload = ip6.payload;
-    in.payload_len = ip6.payload_len;
+    in.payload = ip6->payload;
+    in.payload_len = ip6->payload_len;
     in.seq = in_seq;
     in.have_sni = tls.have_sni;
     in.sni_off = tls.sni_off;
@@ -354,14 +354,14 @@ static int session_packet_ipv6_parsed(d2k_session *s, const uint8_t *pkt, size_t
     d2k_conn wire;
     memset(&wire, 0, sizeof wire);
     wire.family = D2K_KEY_IPV6;
-    memcpy(wire.src_ip6, ip6.ip6h->ip6_src.s6_addr, 16);
-    memcpy(wire.dst_ip6, ip6.ip6h->ip6_dst.s6_addr, 16);
+    memcpy(wire.src_ip6, ip6->ip6h->ip6_src.s6_addr, 16);
+    memcpy(wire.dst_ip6, ip6->ip6h->ip6_dst.s6_addr, 16);
     memcpy(&wire.src_port, t, 2);
     memcpy(&wire.dst_port, t + 2, 2);
     wire.ack = ((uint32_t)t[8] << 24) | ((uint32_t)t[9] << 16) |
                ((uint32_t)t[10] << 8) | t[11];
     wire.window = rd16(t + 14);
-    wire.ttl = ip6.hop_limit;
+    wire.ttl = ip6->hop_limit;
 
     size_t used = 0;
     size_t n = acts.n;
