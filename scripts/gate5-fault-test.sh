@@ -114,7 +114,7 @@ QEMU=${QEMU_BIN:-$(command -v qemu-system-x86_64 || true)}
 KERNEL=${QEMU_KERNEL:-}
 [ -n "$KERNEL" ] || KERNEL=$(find /boot -maxdepth 1 -type f -name "vmlinuz-*" -print 2>/dev/null | sort | tail -1 || true)
 log "QEMU=$QEMU kernel=$KERNEL cpio=$(command -v cpio || true) busybox=$(command -v busybox || true)"
-if [ -x "$QEMU" ] && [ -n "$KERNEL" ] && [ -r "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
+if [ -n "$QEMU" ] && [ -f "$KERNEL" ] && [ -r "$KERNEL" ] && command -v cpio >/dev/null 2>&1 && command -v busybox >/dev/null 2>&1; then
     G="$TMP/initramfs"
     mkdir -p "$G/bin" "$G/proc" "$G/sys" "$G/dev"
     cp "$(command -v busybox)" "$G/bin/busybox"
