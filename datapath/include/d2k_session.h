@@ -21,6 +21,7 @@
 #include "d2k_plans.h"
 #include "d2k_track.h"
 #include "d2k_wire.h"
+#include "../ipv6.h"
 
 /* Что делать с пакетом, который нам дали. */
 typedef enum {
@@ -78,6 +79,12 @@ void d2k_session_set_plan(d2k_session *s, d2k_plan *p);
 int d2k_session_packet(d2k_session *s, const uint8_t *pkt, size_t len,
                        uint64_t now_ns, uint8_t *buf, size_t bufcap,
                        d2k_result *out);
+
+/* Processes an IPv6 packet after the NFQUEUE loop has parsed its IPv6 headers. */
+int d2k_session_packet_ipv6(d2k_session *s, const uint8_t *pkt, size_t len,
+                            const struct d2k_ip6_info *ip6,
+                            uint64_t now_ns, uint8_t *buf, size_t bufcap,
+                            d2k_result *out);
 
 /* Освобождает потоки, молчавшие дольше idle_ns. Возвращает сколько освободил.
  * Зовётся вызывающим, а не сама: датапат не заводит таймеров и не решает, как
