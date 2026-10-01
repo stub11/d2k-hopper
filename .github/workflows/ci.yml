@@ -36,7 +36,6 @@ jobs:
 
       - name: Формат
         run: |
-          gofmt -d internal/controller/controller_test.go || true
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
             echo "не отформатировано:"
