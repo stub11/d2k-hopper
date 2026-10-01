@@ -38,6 +38,8 @@ const (
 	CmdClear    uint16 = 0x0085
 	CmdStats    uint16 = 0x0086
 	CmdArmShape uint16 = 0x0087
+	CmdSetAddr6 uint16 = 0x0088
+	CmdDelAddr6 uint16 = 0x0089
 )
 
 // Коды причин подозрения. Обязаны совпадать с datapath/include/d2k_journal.h.
@@ -72,14 +74,27 @@ const FrameMax = 65536
 // Key — канонический ключ потока: низкий конец пары, затем высокий.
 // Названия low/high, а не src/dst, потому что у соединения источника нет —
 // он есть у пакета.
-type Key struct {
-	LowIP    [4]byte
-	HighIP   [4]byte
+type Key6 struct {
+	LowIP6   [16]byte
+	HighIP6  [16]byte
 	LowPort  uint16
 	HighPort uint16
 }
 
+type Key struct {
+	Family   uint8
+	LowIP    [4]byte
+	HighIP   [4]byte
+	LowPort  uint16
+	HighPort uint16
+	LowIP6   [16]byte
+	HighIP6  [16]byte
+}
+
 func (k Key) String() string {
+	if k.Family == 6 {
+		return fmt.Sprintf("[%x]:%d - [%x]:%d", k.LowIP6, k.LowPort, k.HighIP6, k.HighPort)
+	}
 	return fmt.Sprintf("%d.%d.%d.%d:%d - %d.%d.%d.%d:%d",
 		k.LowIP[0], k.LowIP[1], k.LowIP[2], k.LowIP[3], k.LowPort,
 		k.HighIP[0], k.HighIP[1], k.HighIP[2], k.HighIP[3], k.HighPort)
@@ -227,7 +242,15 @@ func (c *Conn) DelPlanName(name string) error {
 	return c.send(CmdDelName, append([]byte{byte(len(name))}, name...))
 }
 
+func (c *Conn) SetPlanAddr6(ip [16]byte, tlv []byte) error {
+	body := make([]byte, 0, 16+len(tlv))
+	body = append(body, ip[:]...)
+	body = append(body, tlv...)
+	return c.send(CmdSetAddr6, body)
+}
+
 func (c *Conn) DelPlanAddr(ip [4]byte) error { return c.send(CmdDelAddr, ip[:]) }
+func (c *Conn) DelPlanAddr6(ip [16]byte) error { return c.send(CmdDelAddr6, ip[:]) }
 
 // WantShape просит у датапата форму приветствия цели.
 //
@@ -264,12 +287,20 @@ func (c *Conn) Next() (Event, error) {
 	// Подтверждение команды ключа потока не имеет: оно не про поток. Но
 	// место под ключ в кадре есть у всех событий одинаково — так проще и
 	// разбору, и сборке.
-	key, err := parseKey(body)
-	if err != nil {
-		return ev, err
+	var rest []byte
+	if ev.Type != EvAck && len(body) >= 37 && body[0] == 6 {
+		ev.Key.Family = 6
+		copy(ev.Key.LowIP6[:], body[1:17])
+		copy(ev.Key.HighIP6[:], body[17:33])
+		ev.Key.LowPort = binary.BigEndian.Uint16(body[33:35])
+		ev.Key.HighPort = binary.BigEndian.Uint16(body[35:37])
+		rest = body[37:]
+	} else {
+		key, err := parseKey(body)
+		if err != nil { return ev, err }
+		ev.Key = key
+		rest = body[12:]
 	}
-	ev.Key = key
-	rest := body[12:]
 
 	switch ev.Type {
 	case EvHello:
