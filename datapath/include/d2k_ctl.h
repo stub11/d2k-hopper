@@ -50,6 +50,12 @@
  * «через паузу на всякий случай». Пауза наугад — это гонка, которую не видно,
  * пока она не проявится на медленной коробке. */
 #define D2K_EV_ACK       0x0008
+#define D2K_EV_HELLO6    0x0009
+#define D2K_EV_SUSPECT6  0x000A
+#define D2K_EV_APPLIED6  0x000B
+#define D2K_EV_REFUSED6  0x000C
+#define D2K_EV_EXCHANGE6 0x000D
+#define D2K_EV_SHAPE6    0x000E
 
 /* Команды: контроллер → датапат. */
 #define D2K_CMD_SET_NAME 0x0081  /* длина имени u8, имя, план TLV */
