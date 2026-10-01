@@ -363,7 +363,7 @@ func (c *Controller) Handle(ev control.Event) error {
 	c.expire(now)
 
 	switch ev.Type {
-	case control.EvHello:
+	case control.EvHello, control.EvHello6:
 		c.remember(ev.Key, ev.Name)
 		if ev.Name != "" {
 			// Под наблюдение по объёму ставим сразу: обрыв случится позже,
@@ -376,19 +376,19 @@ func (c *Controller) Handle(ev control.Event) error {
 	case control.EvAck:
 		return c.onAck(ev, now)
 
-	case control.EvShape:
+	case control.EvShape, control.EvShape6:
 		c.onShape(ev)
 
-	case control.EvApplied:
+	case control.EvApplied, control.EvApplied6:
 		if t := c.taskForKey(ev.Key); t != nil && t.Current != nil {
 			t.AppliedCount++
 			c.Applied++
 		}
 
-	case control.EvSuspect:
+	case control.EvSuspect, control.EvSuspect6:
 		return c.onSuspect(ev, now)
 
-	case control.EvExchange:
+	case control.EvExchange, control.EvExchange6:
 		return c.onExchange(ev, now)
 	}
 	return nil
