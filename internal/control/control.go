@@ -30,6 +30,12 @@ const (
 	EvStats    uint16 = 0x0006
 	EvShape    uint16 = 0x0007
 	EvAck      uint16 = 0x0008
+	EvHello6   uint16 = 0x0009
+	EvSuspect6 uint16 = 0x000A
+	EvApplied6 uint16 = 0x000B
+	EvRefused6 uint16 = 0x000C
+	EvExchange6 uint16 = 0x000D
+	EvShape6   uint16 = 0x000E
 
 	CmdSetName  uint16 = 0x0081
 	CmdSetAddr  uint16 = 0x0082
@@ -289,17 +295,18 @@ func (c *Conn) Next() (Event, error) {
 	// место под ключ в кадре есть у всех событий одинаково — так проще и
 	// разбору, и сборке.
 	var rest []byte
-	if ev.Type != EvAck && len(body) >= 37 && body[0] == 6 {
+	if ev.Type >= EvHello6 && ev.Type <= EvShape6 {
+		if len(body) < 36 { return ev, errors.New("IPv6 событие короче 36-байтового ключа") }
 		ev.Key.Family = 6
-		copy(ev.Key6.LowIP6[:], body[1:17])
-		copy(ev.Key6.HighIP6[:], body[17:33])
-		ev.Key6.LowPort = binary.BigEndian.Uint16(body[33:35])
-		ev.Key6.HighPort = binary.BigEndian.Uint16(body[35:37])
+		copy(ev.Key6.LowIP6[:], body[0:16])
+		copy(ev.Key6.HighIP6[:], body[16:32])
+		ev.Key6.LowPort = binary.BigEndian.Uint16(body[32:34])
+		ev.Key6.HighPort = binary.BigEndian.Uint16(body[34:36])
 		ev.Key.LowIP6 = ev.Key6.LowIP6
 		ev.Key.HighIP6 = ev.Key6.HighIP6
 		ev.Key.LowPort = ev.Key6.LowPort
 		ev.Key.HighPort = ev.Key6.HighPort
-		rest = body[37:]
+		rest = body[36:]
 	} else {
 		key, err := parseKey(body)
 		if err != nil { return ev, err }
