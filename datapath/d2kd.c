@@ -36,6 +36,7 @@
 #include "d2k_raw.h"
 #include "d2k_sched.h"
 #include "d2k_session.h"
+#include "ipv6.h"
 
 /* Константы времени с явной шириной. Смешивать uint64_t с суффиксом ULL
    нельзя: на aarch64 это разные типы, и printf расходится с аргументом. */
@@ -635,8 +636,21 @@ int main(int argc, char **argv) {
                         st.truncated++;
                         res.skipped = "пакет обрезан copy_range";
                     } else {
-                        d2k_session_packet(sess, np.payload, np.payload_len, t,
-                                           obuf, sizeof obuf, &res);
+                        if ((np.payload[0] >> 4) == 6) {
+                            struct d2k_ip6_info ip6;
+                            int ip6_rc = d2k_parse_ipv6(np.payload, np.payload_len, &ip6);
+                            if (ip6_rc == D2K_IP6_ERR) {
+                                res.skipped = "некорректный IPv6";
+                            } else if (ip6_rc != D2K_IP6_TCP) {
+                                res.skipped = "IPv6 не TCP";
+                            } else {
+                                d2k_session_packet_ipv6(sess, np.payload, np.payload_len,
+                                                         &ip6, t, obuf, sizeof obuf, &res);
+                            }
+                        } else {
+                            d2k_session_packet(sess, np.payload, np.payload_len, t,
+                                               obuf, sizeof obuf, &res);
+                        }
                     }
 
                     if (res.skipped) {
