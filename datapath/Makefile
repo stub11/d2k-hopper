@@ -208,7 +208,7 @@ d2kd-aarch64:
 # planlab тоже в зависимостях, и это не украшение: он собирается отдельной
 # целью, поэтому однажды check остался зелёным при несобирающейся
 # лаборатории. Проверка, не собирающая всё, что есть, проверяет не дерево.
-check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6
+check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline
 
 clean:
 	rm -f *.o $(TESTS) test_ipv6 planlab ctlprobe
