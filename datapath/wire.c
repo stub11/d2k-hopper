@@ -92,7 +92,7 @@ static size_t d2k_wire_build6(const d2k_conn *c, const d2k_emit *e,
     wr16(out + 4, (uint16_t)(total - 40));
     memcpy(out + 8, c->src_ip6, 16);
     memcpy(out + 24, c->dst_ip6, 16);
-    out[6] = IPPROTO_TCP;
+    out[6] = 6; /* TCP */
     out[7] = e->ttl ? e->ttl : (c->ttl ? c->ttl : 64);
     uint8_t *t = out + 40;
     memcpy(t + 0, &c->src_port, 2);
