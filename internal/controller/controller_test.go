@@ -31,7 +31,6 @@ import (
 	"github.com/necronicle/d2k/internal/controller"
 	"github.com/necronicle/d2k/internal/plan"
 	"github.com/necronicle/d2k/internal/probe"
-
 )
 
 type rig struct {
