@@ -24,7 +24,7 @@ HDR     = include/d2k_plan.h include/d2k_tls.h include/d2k_wire.h include/d2k_tr
 
 # Тесты и их объектные файлы. Один список — чтобы санитайзерная цель не
 # разъезжалась с обычной: разъехавшись, она проверяла бы не то дерево.
-TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl test_ipv6
+TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl ipv6_test
 
 .PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 cross clean
 
