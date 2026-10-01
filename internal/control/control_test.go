@@ -55,15 +55,14 @@ func TestNextParsesTypedIPv6Key(t *testing.T) {
         c, err := ln.Accept()
         if err != nil { return }
         defer c.Close()
-        body := make([]byte, 37)
-        body[0] = 6
-        for i := 0; i < 16; i++ { body[1+i] = byte(i) }
-        for i := 0; i < 16; i++ { body[17+i] = byte(16+i) }
-        binary.BigEndian.PutUint16(body[33:35], 443)
-        binary.BigEndian.PutUint16(body[35:37], 50000)
+        body := make([]byte, 36)
+        for i := 0; i < 16; i++ { body[i] = byte(i) }
+        for i := 0; i < 16; i++ { body[16+i] = byte(16+i) }
+        binary.BigEndian.PutUint16(body[32:34], 443)
+        binary.BigEndian.PutUint16(body[34:36], 50000)
         frame := make([]byte, 6+len(body))
         binary.BigEndian.PutUint32(frame[:4], uint32(2+len(body)))
-        binary.BigEndian.PutUint16(frame[4:6], EvHello)
+        binary.BigEndian.PutUint16(frame[4:6], EvHello6)
         copy(frame[6:], body)
         _, _ = c.Write(frame)
     }()
