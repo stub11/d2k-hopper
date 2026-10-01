@@ -1,0 +1,82 @@
+#!/bin/sh
+# Entware init.d contract for d2kd.
+# rc.unslung sources executable S* scripts in numeric order.
+
+NAME=d2kd
+ROOT=${D2K_ROOT:-/}
+BIN=${D2K_BIN:-/opt/sbin/d2kd}
+PIDFILE=${D2K_PIDFILE:-/var/run/d2kd.pid}
+WATCHDOG_PIDFILE=${D2K_WATCHDOG_PIDFILE:-/var/run/d2kd-watchdog.pid}
+LOG=${D2K_LOG:-/opt/var/log/d2kd.log}
+QUEUE=${D2K_QUEUE:-0}
+WATCHDOG_SEC=${D2K_WATCHDOG_SEC:-2}
+
+mkdir -p "${LOG%/*}" "${PIDFILE%/*}" "${WATCHDOG_PIDFILE%/*}" 2>/dev/null || true
+
+start_daemon() {
+    [ -x "$BIN" ] || { echo "$NAME: missing executable $BIN" >&2; return 1; }
+    if [ -r "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+        return 0
+    fi
+    "$BIN" --queue "$QUEUE" >>"$LOG" 2>&1 &
+    echo $! >"$PIDFILE"
+}
+
+start_watchdog() {
+    [ -r "$WATCHDOG_PIDFILE" ] && kill -0 "$(cat "$WATCHDOG_PIDFILE" 2>/dev/null)" 2>/dev/null && return 0
+    (
+        while :; do
+            sleep "$WATCHDOG_SEC"
+            if [ ! -r "$PIDFILE" ] || ! kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+                start_daemon || exit 1
+            fi
+        done
+    ) &
+    echo $! >"$WATCHDOG_PIDFILE"
+}
+
+stop() {
+    if [ -r "$WATCHDOG_PIDFILE" ]; then
+        kill "$(cat "$WATCHDOG_PIDFILE" 2>/dev/null)" 2>/dev/null || true
+        rm -f "$WATCHDOG_PIDFILE"
+    fi
+    if [ -r "$PIDFILE" ]; then
+        pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+        case "$pid" in ''|*[!0-9]*) ;; *) kill "$pid" 2>/dev/null || true ;; esac
+        rm -f "$PIDFILE"
+    fi
+}
+
+status() {
+    if [ -r "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+        echo "$NAME: running"
+        return 0
+    fi
+    echo "$NAME: stopped"
+    return 1
+}
+
+case "${1:-}" in
+    start)
+        start_daemon
+        start_watchdog
+        ;;
+    stop|kill)
+        stop
+        ;;
+    restart)
+        stop
+        start_daemon
+        start_watchdog
+        ;;
+    status)
+        status
+        ;;
+    check)
+        [ -x "$BIN" ] || exit 1
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status|check}" >&2
+        exit 1
+        ;;
+esac
