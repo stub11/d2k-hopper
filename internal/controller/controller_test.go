@@ -594,7 +594,6 @@ func TestВопросПредшествуетКандидатам(t *testing.T) 
 	}
 }
 
-
 func TestSyncPushesIPv6AddressBinding(t *testing.T) {
 	cat := catalog.New()
 	fp := catalog.Fingerprint{
