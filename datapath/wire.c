@@ -7,6 +7,7 @@
  * Плавающей арифметики нет и быть не может: коробки идут без сопроцессора.
  */
 #include <string.h>
+#include <netinet/in.h>
 
 #include "d2k_wire.h"
 
