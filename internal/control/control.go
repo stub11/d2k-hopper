@@ -34,7 +34,7 @@ const (
 	EvSuspect6 uint16 = 0x000A
 	EvApplied6 uint16 = 0x000B
 	EvRefused6 uint16 = 0x000C
-	EvExchange6 uint16 = 0x000D 
+	EvExchange6 uint16 = 0x000D
 	EvShape6    uint16 = 0x000E
 
 	CmdSetName  uint16 = 0x0081
