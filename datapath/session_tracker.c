@@ -227,6 +227,11 @@ static uint64_t idle_limit(const d2k_session_tracker *t, const d2k_tracked_sessi
 }
 
 size_t d2k_session_tracker_expire(d2k_session_tracker *t, uint64_t now_ns) {
+    return d2k_session_tracker_expire_notify(t, now_ns, NULL, NULL);
+}
+
+size_t d2k_session_tracker_expire_notify(d2k_session_tracker *t, uint64_t now_ns,
+    void (*notify)(void *, const d2k_tracked_session *, uint64_t), void *ctx) {
     if (!t) return 0;
     size_t removed = 0;
     /* Walk each chain once; repeated keyed removes would be quadratic when
@@ -237,6 +242,7 @@ size_t d2k_session_tracker_expire(d2k_session_tracker *t, uint64_t now_ns) {
             size_t i = *link;
             const d2k_tracked_session *s = &t->slots[i].session;
             if (now_ns >= s->last_ns && now_ns - s->last_ns >= idle_limit(t, s)) {
+                if (notify) notify(ctx, s, now_ns);
                 erase(t, link, i); removed++;
             } else link = &t->slots[i].next;
         }

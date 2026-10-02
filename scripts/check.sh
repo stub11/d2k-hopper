@@ -29,7 +29,7 @@ $GO vet ./...
 echo "== датапат: сборка и тесты =="
 make -C datapath clean
 make -C datapath check
-make -C datapath planlab ctlprobe
+make -C datapath planlab ctlprobe pipelineprobe
 
 echo "== датапат: чужой компилятор =="
 # Локально всё собирает clang, а CI — gcc. Они расходятся: gcc ловит

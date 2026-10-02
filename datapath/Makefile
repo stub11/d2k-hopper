@@ -13,22 +13,22 @@ ZIG        ?= /opt/homebrew/bin/zig
 MIPSEL_CC  ?= mipsel-unknown-linux-gnu-gcc
 
 # Переносимый датапат: собирается и проверяется на любой машине.
-SRC     = plan_parse.c plan_apply.c tls.c wire.c track.c session.c session_tracker.c nl.c sched.c journal.c plans.c ctl.c ctlsrv.c
+SRC     = plan_parse.c plan_apply.c tls.c wire.c track.c session.c session_tracker.c d2k_pipeline.c nfqueue_handler.c nl.c sched.c journal.c plans.c ctl.c ctlsrv.c
 # Системный слой: только Linux. На маке не собирается намеренно — подделывать
 # сокеты ядра ради сборки значило бы проверять подделку. Проверяется целью
 # cross, которая линкует ПОЛНУЮ службу под обе целевые арки: полная сборка
 # доказывает больше, чем компиляция объектников.
 LINUXSRC = nfq.c raw.c
 DAEMON   = d2kd.c
-HDR     = include/d2k_plan.h include/d2k_tls.h include/d2k_wire.h include/d2k_track.h include/d2k_session.h include/d2k_nl.h include/d2k_sched.h include/d2k_nfq.h include/d2k_raw.h include/d2k_journal.h include/d2k_plans.h include/d2k_ctl.h include/d2k_ctlsrv.h plan_internal.h ipv6.h session_tracker.h
+HDR     = include/d2k_plan.h include/d2k_tls.h include/d2k_wire.h include/d2k_track.h include/d2k_session.h include/d2k_nl.h include/d2k_sched.h include/d2k_nfq.h include/d2k_raw.h include/d2k_journal.h include/d2k_plans.h include/d2k_ctl.h include/d2k_ctlsrv.h plan_internal.h ipv6.h session_tracker.h d2k_pipeline.h nfqueue_handler.h
 
 # Тесты и их объектные файлы. Один список — чтобы санитайзерная цель не
 # разъезжалась с обычной: разъехавшись, она проверяла бы не то дерево.
-TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl ipv6_test test_ipv6_pipeline test_flowkey_e2e test_session_tracker
+TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl ipv6_test test_ipv6_pipeline test_flowkey_e2e test_session_tracker test_stateful_pipeline
 
-.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker cross clean
+.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline cross clean
 
-all: planlab ctlprobe
+all: planlab ctlprobe pipelineprobe
 
 plan_parse.o: plan_parse.c $(HDR)
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -193,7 +193,7 @@ san:
 # нужен для переносимости. Переопределяется через GCC=.
 GCC ?= mipsel-unknown-linux-gnu-gcc
 gcc-warn:
-	@for f in $(SRC) $(LINUXSRC) $(DAEMON) planlab.c ctlprobe.c $(TESTS:=.c); do \
+	@for f in $(SRC) $(LINUXSRC) $(DAEMON) planlab.c ctlprobe.c pipelineprobe.c $(TESTS:=.c); do \
 		$(GCC) $(CFLAGS) -c -o /tmp/d2k-gccwarn.o $$f || exit 1; \
 	done
 	@echo "чужой компилятор: предупреждений нет"
@@ -224,10 +224,10 @@ d2kd-aarch64:
 # planlab тоже в зависимостях, и это не украшение: он собирается отдельной
 # целью, поэтому однажды check остался зелёным при несобирающейся
 # лаборатории. Проверка, не собирающая всё, что есть, проверяет не дерево.
-check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker
+check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline
 
 clean:
-	rm -f *.o $(TESTS) test_ipv6 planlab ctlprobe
+	rm -f *.o $(TESTS) test_ipv6 planlab ctlprobe pipelineprobe nfqueue_libprobe
 
 PARSER_TEST = d2kd_parser_test
 PARSER_CFLAGS = -std=c99 -O2 -Wall -Wextra -Werror -Iinclude
@@ -238,3 +238,19 @@ $(PARSER_TEST): test_parsers.c tls.c quic.c $(HDR) include/d2k_quic.h
 
 test-parsers: $(PARSER_TEST)
 	./$(PARSER_TEST)
+
+
+d2k_pipeline.o: d2k_pipeline.c $(HDR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+nfqueue_handler.o: nfqueue_handler.c $(HDR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+pipelineprobe: pipelineprobe.c $(SRC:.c=.o) $(HDR)
+	$(CC) $(CFLAGS) -o $@ pipelineprobe.c $(SRC:.c=.o) $(LDFLAGS)
+test_stateful_pipeline: test_stateful_pipeline.c $(SRC:.c=.o) $(HDR)
+	$(CC) $(CFLAGS) -o $@ test_stateful_pipeline.c $(SRC:.c=.o) $(LDFLAGS)
+test-stateful-pipeline: test_stateful_pipeline
+	./test_stateful_pipeline
+# Native optional libnetfilter_queue adapter; the default raw backend stays.
+nfqueue_libprobe: nfqueue_libprobe.c nfqueue_handler.c $(SRC) $(HDR)
+	$(CC) $(CFLAGS) -D_POSIX_C_SOURCE=200809L -DD2K_WITH_LIBNFQ \
+	    -o $@ nfqueue_libprobe.c $(SRC) $(LDFLAGS) -lnetfilter_queue
