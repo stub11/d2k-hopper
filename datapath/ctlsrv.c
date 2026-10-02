@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "d2k_ctlsrv.h"
+#include "d2k_pipeline.h"
 
 int d2k_plan_fits(const d2k_plan *p, uint32_t limits, char *why, size_t cap) {
     if (limits == 0) {
@@ -45,6 +46,7 @@ static void ack(d2k_ctlsrv *cx, uint16_t type, int ok) {
 
 void d2k_ctlsrv_command(void *vctx, uint16_t type, const uint8_t *b, size_t len) {
     d2k_ctlsrv *cx = vctx;
+    if (d2k_pipeline_command(cx->pipeline,type,b,len)) return;
     char why[200];
     d2k_plantab *tab = d2k_session_plans(cx->sess);
 

@@ -176,19 +176,15 @@ void d2k_ctl_flush(d2k_ctl *c) {
     }
 }
 
-void d2k_ctl_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len) {
+int d2k_ctl_try_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len) {
     if (!c || c->pfd < 0 || len > D2K_CTL_FRAME_MAX - 2) {
-        if (c) {
-            c->dropped++;
-        }
-        return;
+        return -1;
     }
     /* Хвост прошлого кадра ещё не ушёл — это событие теряется. Ставить его в
        очередь значит заводить память без предела. */
     d2k_ctl_flush(c);
     if (c->out_off < c->out_len) {
-        c->dropped++;
-        return;
+        return 0;
     }
 
     size_t plen = 2 + len;
@@ -204,6 +200,10 @@ void d2k_ctl_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len) {
     c->out_len = HDR + len;
     c->out_off = 0;
     d2k_ctl_flush(c);
+    return c->pfd < 0 ? -1 : 1;
+}
+void d2k_ctl_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len) {
+    if (d2k_ctl_try_event(c,type,body,len)<=0 && c) c->dropped++;
 }
 
 int d2k_ctl_poll(d2k_ctl *c,

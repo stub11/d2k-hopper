@@ -93,5 +93,9 @@ size_t d2k_session_tracker_expire_notify(d2k_session_tracker *tracker, uint64_t 
 size_t d2k_session_tracker_count(const d2k_session_tracker *tracker);
 size_t d2k_session_tracker_capacity(const d2k_session_tracker *tracker);
 uint64_t d2k_session_tracker_refusals(const d2k_session_tracker *tracker);
+/* Single-owner O(capacity) read-only walk; callback must not mutate tracker. */
+void d2k_session_tracker_visit(const d2k_session_tracker *tracker,
+    void (*visit)(void *, const d2k_tracked_session *), void *ctx);
+size_t d2k_session_tracker_memory_bytes(const d2k_session_tracker *tracker);
 
 #endif

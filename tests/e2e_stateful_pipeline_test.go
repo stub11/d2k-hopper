@@ -23,7 +23,7 @@ type bridge struct {
 	sequence uint64
 }
 
-func startBridge(t *testing.T, mode string) *bridge {
+func startBridge(t testing.TB, mode string) *bridge {
 	t.Helper()
 	bin, err := filepath.Abs("../datapath/pipelineprobe")
 	if err != nil {
@@ -74,7 +74,7 @@ func startBridge(t *testing.T, mode string) *bridge {
 	t.Cleanup(func() { _ = conn.Close() })
 	return &bridge{in: in, out: scanner, conn: conn}
 }
-func (b *bridge) command(t *testing.T, command string, verdict uint64) []control.SessionEvent {
+func (b *bridge) command(t testing.TB, command string, verdict uint64) []control.SessionEvent {
 	t.Helper()
 	if _, err := fmt.Fprintln(b.in, command); err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func (b *bridge) command(t *testing.T, command string, verdict uint64) []control
 		t.Fatalf("unexpected ring loss %d", nums[5])
 	}
 	events := make([]control.SessionEvent, 0, nums[3])
-	for i := uint64(0); i < nums[3]; i++ {
+	for i := uint64(0); i < nums[3]; {
 		if err := b.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 			t.Fatal(err)
 		}
@@ -109,9 +109,13 @@ func (b *bridge) command(t *testing.T, command string, verdict uint64) []control
 		if err != nil {
 			t.Fatal(err)
 		}
+		if e.Snapshot != nil {
+			continue
+		}
 		if e.Session == nil {
 			t.Fatalf("not a session event: %#v", e)
 		}
+		i++
 		s := *e.Session
 		if s.Sequence != b.sequence+1 {
 			t.Fatalf("event sequence gap %d -> %d", b.sequence, s.Sequence)
@@ -213,7 +217,7 @@ func rawPacket(family int, reverse, udp bool, flags byte, seq, ack uint32, paylo
 	}
 	return b
 }
-func (b *bridge) packet(t *testing.T, now uint64, packet []byte, verdict uint64) []control.SessionEvent {
+func (b *bridge) packet(t testing.TB, now uint64, packet []byte, verdict uint64) []control.SessionEvent {
 	return b.command(t, fmt.Sprintf("packet %d %s", now, hex.EncodeToString(packet)), verdict)
 }
 func TestE2EStatefulPipeline(t *testing.T) {

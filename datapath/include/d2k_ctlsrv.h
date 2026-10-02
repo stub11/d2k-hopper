@@ -19,7 +19,9 @@
 #include "d2k_session.h"
 
 /* Контекст обслуживания команд. */
+struct d2k_pipeline;
 typedef struct {
+    struct d2k_pipeline *pipeline;
     d2k_session *sess;
     /* Куда слать подтверждения. NULL — не слать (стенд без контроллера). */
     d2k_ctl     *ctl;

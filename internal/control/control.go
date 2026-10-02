@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -122,10 +123,11 @@ func parseKey(b []byte) (Key, error) {
 
 // Event — то, что датапат увидел.
 type Event struct {
-	Session *SessionEvent // nonnil for the versioned Vertical 2 session events
-	Type    uint16
-	Key     Key
-	Key6    Key6
+	Snapshot *SnapshotFrame
+	Session  *SessionEvent // nonnil for the versioned Vertical 2 session events
+	Type     uint16
+	Key      Key
+	Key6     Key6
 	// Имя цели для EvHello. Пустое — нормальное состояние (§5.3), а не сбой.
 	Name string
 	// Код причины для EvSuspect.
@@ -185,8 +187,10 @@ const (
 
 // Conn — подключение к датапату.
 type Conn struct {
-	c   net.Conn
-	buf []byte
+	mirror  *SessionMirror
+	writeMu sync.Mutex
+	c       net.Conn
+	buf     []byte
 }
 
 // Dial подключается к управляющему сокету датапата.
@@ -195,7 +199,7 @@ func Dial(path string) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Conn{c: c}, nil
+	return &Conn{c: c, mirror: NewSessionMirror(1000000)}, nil
 }
 
 func (c *Conn) Close() error { return c.c.Close() }
@@ -211,6 +215,8 @@ func (c *Conn) SetReadDeadline(t time.Time) error { return c.c.SetReadDeadline(t
 func (c *Conn) SetWriteDeadline(t time.Time) error { return c.c.SetWriteDeadline(t) }
 
 func (c *Conn) send(typ uint16, body []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	if len(body)+2 > FrameMax {
 		return fmt.Errorf("кадр %#04x длиннее предела", typ)
 	}
@@ -218,8 +224,17 @@ func (c *Conn) send(typ uint16, body []byte) error {
 	binary.BigEndian.PutUint32(f[0:4], uint32(2+len(body)))
 	binary.BigEndian.PutUint16(f[4:6], typ)
 	copy(f[6:], body)
-	_, err := c.c.Write(f)
-	return err
+	for len(f) > 0 {
+		n, err := c.c.Write(f)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		f = f[n:]
+	}
+	return nil
 }
 
 // SetPlanName ставит план для цели по имени. Имя точнее адреса и потому у
@@ -295,12 +310,34 @@ func (c *Conn) Next() (Event, error) {
 		return ev, err
 	}
 
+	if ev.Type >= EvDumpBegin && ev.Type <= EvSessionWatermark {
+		frame, err := DecodeSnapshotFrame(ev.Type, body)
+		if err != nil {
+			return ev, err
+		}
+		ev.Snapshot = &frame
+		if c.mirror != nil {
+			if err = c.mirror.ApplyFrame(frame); err != nil {
+				return ev, err
+			}
+			if err = c.PollSessionResync(); err != nil {
+				return ev, err
+			}
+		}
+		return ev, nil
+	}
 	if ev.Type >= EvSessionCreated && ev.Type <= EvSessionClosed {
 		session, err := DecodeSessionEvent(ev.Type, body)
 		if err != nil {
 			return ev, err
 		}
 		ev.Session = &session
+		if c.mirror != nil {
+			c.mirror.ApplyEvent(session)
+			if err := c.PollSessionResync(); err != nil {
+				return ev, err
+			}
+		}
 		ev.Key = session.Key
 		if ev.Key.Family == 6 {
 			ev.Key6 = Key6{LowIP6: ev.Key.LowIP6, HighIP6: ev.Key.HighIP6,

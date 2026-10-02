@@ -24,9 +24,9 @@ HDR     = include/d2k_plan.h include/d2k_tls.h include/d2k_wire.h include/d2k_tr
 
 # Тесты и их объектные файлы. Один список — чтобы санитайзерная цель не
 # разъезжалась с обычной: разъехавшись, она проверяла бы не то дерево.
-TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl ipv6_test test_ipv6_pipeline test_flowkey_e2e test_session_tracker test_stateful_pipeline
+TESTS   = test_plan_parse test_plan_apply test_tls test_wire test_track test_session test_nl test_sched test_journal test_plans test_ctl ipv6_test test_ipv6_pipeline test_flowkey_e2e test_session_tracker test_stateful_pipeline test_session_resync
 
-.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline cross clean
+.PHONY: all check san gcc-warn ctlprobe d2kd-aarch64 test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline test-session-resync cross clean
 
 all: planlab ctlprobe pipelineprobe
 
@@ -193,7 +193,7 @@ san:
 # нужен для переносимости. Переопределяется через GCC=.
 GCC ?= mipsel-unknown-linux-gnu-gcc
 gcc-warn:
-	@for f in $(SRC) $(LINUXSRC) $(DAEMON) planlab.c ctlprobe.c pipelineprobe.c $(TESTS:=.c); do \
+	@for f in $(SRC) $(LINUXSRC) $(DAEMON) planlab.c ctlprobe.c pipelineprobe.c bench_session_tracker.c $(TESTS:=.c); do \
 		$(GCC) $(CFLAGS) -c -o /tmp/d2k-gccwarn.o $$f || exit 1; \
 	done
 	@echo "чужой компилятор: предупреждений нет"
@@ -224,10 +224,10 @@ d2kd-aarch64:
 # planlab тоже в зависимостях, и это не украшение: он собирается отдельной
 # целью, поэтому однажды check остался зелёным при несобирающейся
 # лаборатории. Проверка, не собирающая всё, что есть, проверяет не дерево.
-check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline
+check: all test-parse test-apply test-tls test-wire test-track test-session test-nl test-sched test-journal test-plans test-ctl test-ipv6 test-ipv6-pipeline test-flowkey-e2e test-session-tracker test-stateful-pipeline test-session-resync
 
 clean:
-	rm -f *.o $(TESTS) test_ipv6 planlab ctlprobe pipelineprobe nfqueue_libprobe
+	rm -f *.o $(TESTS) test_ipv6 planlab ctlprobe pipelineprobe nfqueue_libprobe bench_session_tracker
 
 PARSER_TEST = d2kd_parser_test
 PARSER_CFLAGS = -std=c99 -O2 -Wall -Wextra -Werror -Iinclude
@@ -254,3 +254,13 @@ test-stateful-pipeline: test_stateful_pipeline
 nfqueue_libprobe: nfqueue_libprobe.c nfqueue_handler.c $(SRC) $(HDR)
 	$(CC) $(CFLAGS) -D_POSIX_C_SOURCE=200809L -DD2K_WITH_LIBNFQ \
 	    -o $@ nfqueue_libprobe.c $(SRC) $(LDFLAGS) -lnetfilter_queue
+
+test_session_resync: test_session_resync.c $(SRC:.c=.o) $(HDR)
+	$(CC) $(CFLAGS) -o $@ test_session_resync.c $(SRC:.c=.o) $(LDFLAGS)
+test-session-resync: test_session_resync
+	./test_session_resync
+
+bench_session_tracker: bench_session_tracker.c $(SRC:.c=.o) $(HDR)
+	$(CC) $(CFLAGS) -o $@ bench_session_tracker.c $(SRC:.c=.o) $(LDFLAGS)
+bench: bench_session_tracker
+	./bench_session_tracker 131072 1048576

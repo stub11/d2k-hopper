@@ -59,6 +59,8 @@ jobs:
         # D2K_REQUIRE_LAB превращает пропуск тестов моста в провал: молчаливый
         # пропуск здесь означал бы, что связка Go и C не проверяется вовсе.
         run: D2K_REQUIRE_LAB=1 go test -race -count=1 ./...
+      - name: Go bridge and decoder benchmarks
+        run: go test ./tests -run '^$' -bench 'Benchmark(PipelineBridge|SessionEventDecoder)' -benchtime=100ms -count=3
 
   build:
     name: Сборка под все арки
@@ -115,6 +117,11 @@ jobs:
           sudo apt-get install -y -qq gcc gcc-aarch64-linux-gnu gcc-mipsel-linux-gnu
       - name: Тесты исполнителя планов
         run: make -C datapath check
+
+      - name: C benchmarks — 131072 live dual-stack UDP sessions
+        run: |
+          make -C datapath bench_session_tracker
+          ./datapath/bench_session_tracker 131072 1048576
 
       - name: IPv6 pipeline
         run: cd datapath && make test-ipv6-pipeline
@@ -173,6 +180,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
       - name: Native libnetfilter_queue tools
         run: |
           sudo apt-get update -qq
@@ -181,3 +192,8 @@ jobs:
         run: make -C datapath nfqueue_libprobe
       - name: Isolated netns — real queue and verdicts
         run: sudo sh scripts/check-stateful-nfq.sh
+
+      - name: Real dual-stack veth and namespace bridge
+        run: |
+          go test -c -o /tmp/d2k-veth-tests ./tests
+          sudo env D2K_REQUIRE_VETH=1 D2K_NFQ_PROBE="$PWD/datapath/nfqueue_libprobe" /tmp/d2k-veth-tests -test.run '^TestE2EVethDualStack$' -test.v -test.timeout 60s
