@@ -53,7 +53,7 @@ static size_t make_ipv6_tcp(uint8_t *pkt, size_t cap)
 {
     uint8_t hello[128];
     size_t hello_len = make_client_hello(hello, sizeof hello);
-    const size_t tcp_off = 48;
+    const size_t tcp_off = 40;
     const size_t tcp_len = 20 + hello_len;
     const size_t total = tcp_off + tcp_len;
     assert(cap >= total);
@@ -111,7 +111,7 @@ static void test_parser_tls_and_key(void)
     assert(memcmp(ip6.payload + tls.sni_off, "example", 7) == 0);
 
     assert(d2k_key_make6(&key, pkt + 8, pkt + 24,
-                         pkt + 48, pkt + 50) == 1);
+                         pkt + 40, pkt + 42) == 1);
     assert(key.family == D2K_KEY_IPV6);
     assert(memcmp(key.low_ip6, pkt + 8, 16) == 0);
     assert(memcmp(key.high_ip6, pkt + 24, 16) == 0);
