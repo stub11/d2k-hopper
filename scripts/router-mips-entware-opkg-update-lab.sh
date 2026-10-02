@@ -9,8 +9,14 @@ ENTWARE_URL="https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.ta
 ROOTFS_MOUNT="$ROOT/rootfs"
 OPT_MOUNT="$ROOT/opt"
 QEMU_LOG="$ROOT/qemu.log"
+# Keep evidence outside the temporary tree on successful or failed boot.
+QEMU_EVIDENCE="$(pwd)/qemu-mips-entware-opkg-update.log"
 
 cleanup() {
+  if [ -f "$QEMU_LOG" ]; then
+    cp "$QEMU_LOG" "$QEMU_EVIDENCE" || true
+    echo "QEMU evidence: $QEMU_EVIDENCE" >&2
+  fi
   sudo umount "$OPT_MOUNT" 2>/dev/null || true
   sudo umount "$ROOTFS_MOUNT" 2>/dev/null || true
   rm -rf "$ROOT"
@@ -27,8 +33,8 @@ BR="$(find "$ROOT" -maxdepth 1 -type d -name "buildroot-*" | head -n 1)"
 cd "$BR"
 make qemu_mips32r2el_malta_defconfig
 make -j"$(nproc)"
-[ -x output/images/vmlinux ]
-[ -s output/images/rootfs.ext2 ]
+[ -s output/images/vmlinux ] || { echo "missing or empty MIPS vmlinux kernel image" >&2; ls -lh output/images >&2 || true; exit 1; }
+[ -s output/images/rootfs.ext2 ] || { echo "missing or empty MIPS rootfs.ext2 image" >&2; ls -lh output/images >&2 || true; exit 1; }
 
 echo "== Build real Entware EXT4 /opt disk =="
 truncate -s 768M "$OPT_IMAGE"
@@ -38,12 +44,26 @@ curl --fail --silent --show-error --location --retry 3 -o "$INSTALLER" "$ENTWARE
 tar -xzf "$INSTALLER" -C "$OPT_MOUNT" --no-same-owner
 [ -x "$OPT_MOUNT/opt/bin/opkg" ]
 [ -f "$OPT_MOUNT/opt/etc/opkg.conf" ]
+# Guest mounts this EXT4 volume as /opt; remove the archive\x27s extra opt/ prefix.
+cp -a "$OPT_MOUNT/opt/." "$OPT_MOUNT/"
+rm -rf "$OPT_MOUNT/opt"
+[ -x "$OPT_MOUNT/bin/opkg" ]
+[ -f "$OPT_MOUNT/etc/opkg.conf" ]
 
 echo "== Inject network + opkg-update boot gate =="
 sudo mount -o loop "$BR/output/images/rootfs.ext2" "$ROOTFS_MOUNT"
 sudo mkdir -p "$ROOTFS_MOUNT/opt" "$ROOTFS_MOUNT/etc/init.d"
 sudo sh -c 'cat > "$1/etc/init.d/S20hopper-opkg-update"' sh "$ROOTFS_MOUNT" <<'EOF'
 #!/bin/sh
+if ! mount -t ext4 /dev/sdb /opt; then
+  echo "HOPPER_OPT_MOUNT: FAIL /dev/sdb" >&2
+  exit 1
+fi
+if [ ! -x /opt/bin/opkg ]; then
+  echo "HOPPER_OPT_MOUNT: FAIL missing /opt/bin/opkg" >&2
+  exit 1
+fi
+echo "HOPPER_OPT_MOUNT: GREEN"
 echo "HOPPER_NET_GATE: starting"
 printf '%s\n' 'nameserver 10.0.2.3' > /etc/resolv.conf
 if ! command -v udhcpc >/dev/null 2>&1; then
@@ -86,9 +106,17 @@ timeout 120s qemu-system-mipsel -M malta -m 256 -kernel output/images/vmlinux \
   -net nic,model=pcnet -net user -nographic -no-reboot > "$QEMU_LOG" 2>&1
 RC=$?
 set -e
-
-grep -q "HOPPER_NET_GATE: GREEN" "$QEMU_LOG"
-grep -q "HOPPER_OPKG_UPDATE: GREEN" "$QEMU_LOG"
+cp "$QEMU_LOG" "$QEMU_EVIDENCE"
+require_boot_marker() {
+  if ! grep -q "$1" "$QEMU_LOG"; then
+    echo "MIPS opkg-update lab missing boot marker: $2 (QEMU exit $RC)" >&2
+    tail -n 90 "$QEMU_LOG" >&2
+    exit 1
+  fi
+}
+require_boot_marker "HOPPER_OPT_MOUNT: GREEN" "EXT4 /opt mount"
+require_boot_marker "HOPPER_NET_GATE: GREEN" "network interface / DHCP"
+require_boot_marker "HOPPER_OPKG_UPDATE: GREEN" "actual opkg update"
 sed -n '/HOPPER_NET_GATE/p;/HOPPER_OPKG_UPDATE/p;/eth0/p;/inet /p;/default/p' "$QEMU_LOG" | head -n 120
 if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then exit "$RC"; fi
 echo "HOPPER3810 MIPS ENTWARE OPKG UPDATE LAB: GREEN"
