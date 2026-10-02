@@ -16,7 +16,7 @@ static size_t make_client_hello(uint8_t *out, size_t cap)
         0x00, 0x0a, 0x00, 0x00, 0x07,
         'e', 'x', 'a', 'm', 'p', 'l', 'e'
     };
-    const size_t hs_len = 61;
+    const size_t hs_len = 59;
     const size_t record_len = 4 + hs_len;
     assert(cap >= 5 + record_len);
 
@@ -143,7 +143,7 @@ static void test_extension_header(void)
     pkt[6] = IPPROTO_HOPOPTS;
     pkt[40] = IPPROTO_TCP;
     pkt[41] = 0;
-    uint16_t plen = htons((uint16_t)(len - 40));
+    uint16_t plen = htons((uint16_t)(len + 8 - 40));
     memcpy(pkt + 4, &plen, sizeof plen);
 
     struct d2k_ip6_info info;
