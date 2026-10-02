@@ -17,7 +17,7 @@ command -v readelf >/dev/null 2>&1 || { echo "missing readelf" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 cd "$ROOT/datapath"
 
-SRC="d2kd.c nfq.c raw.c plan_parse.c plan_apply.c tls.c wire.c track.c session.c nl.c sched.c journal.c plans.c ctl.c ctlsrv.c"
+SRC="d2kd.c nfq.c raw.c plan_parse.c plan_apply.c tls.c wire.c track.c session.c session_tracker.c d2k_pipeline.c nfqueue_handler.c nl.c sched.c journal.c plans.c ctl.c ctlsrv.c"
 CFLAGS="-std=c99 -O2 -Wall -Wextra -Werror -Iinclude"
 LDFLAGS="-static"
 
