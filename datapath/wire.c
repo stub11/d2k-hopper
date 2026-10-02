@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 
 #include "d2k_wire.h"
+#include "ipv6.h"
 
 #define IP_HDR  20
 #define TCP_HDR 20
@@ -109,9 +110,11 @@ static size_t d2k_wire_build6(const d2k_conn *c, const d2k_emit *e,
     }
     if (e->len) memcpy(out + 40 + TCP_HDR + opt_len, e->bytes, e->len);
     size_t tcp_len = TCP_HDR + opt_len + e->len;
-    uint32_t acc = pseudo_sum6(out + 8, out + 24, tcp_len);
-    acc = sum16(out + 40, tcp_len, acc);
-    uint16_t ck = fold(acc);
+    struct in6_addr src6;
+    struct in6_addr dst6;
+    memcpy(&src6, out + 8, sizeof src6);
+    memcpy(&dst6, out + 24, sizeof dst6);
+    uint16_t ck = d2k_tcp_checksum_ipv6(&src6, &dst6, out + 40, tcp_len);
     if (e->poison & D2K_POISON_BADSUM) { ck = (uint16_t)~ck; if (ck == 0) ck = 0xffff; }
     wr16(t + 16, ck);
     return total;
