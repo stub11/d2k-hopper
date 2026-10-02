@@ -30,8 +30,8 @@ BR="$(find "$ROOT" -maxdepth 1 -type d -name "buildroot-*" | head -n 1)"
 cd "$BR"
 make qemu_mips32r2el_malta_defconfig
 make -j"$(nproc)"
-[ -x output/images/vmlinux ]
-[ -s output/images/rootfs.ext2 ]
+[ -s output/images/vmlinux ] || { echo "missing or empty MIPS vmlinux kernel image" >&2; ls -lh output/images >&2 || true; exit 1; }
+[ -s output/images/rootfs.ext2 ] || { echo "missing or empty MIPS rootfs.ext2 image" >&2; ls -lh output/images >&2 || true; exit 1; }
 echo "== Build real Entware EXT4 /opt disk =="
 truncate -s 768M "$OPT_IMAGE"
 mkfs.ext4 -F -L HOPPEROPT "$OPT_IMAGE" >/dev/null
