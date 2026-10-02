@@ -111,10 +111,10 @@ static inline uint16_t d2k_tcp_checksum_ipv6(const struct in6_addr *src,
     uint32_t sum = 0;
     const uint8_t *p = (const uint8_t *)src;
     size_t i;
-    for (i = 0; i < 32; i += 2)
+    for (i = 0; i < 16; i += 2)
         sum += ((uint32_t)p[i] << 8) | p[i + 1];
     p = (const uint8_t *)dst;
-    for (i = 0; i < 32; i += 2)
+    for (i = 0; i < 16; i += 2)
         sum += ((uint32_t)p[i] << 8) | p[i + 1];
     sum += (uint32_t)(tcp_len >> 16);
     sum += (uint32_t)(tcp_len & 0xffffu);
