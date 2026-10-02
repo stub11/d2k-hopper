@@ -8,6 +8,11 @@ struct d2k_pipeline {
     size_t cap, head, count;
     uint64_t sequence, dropped;
     int enforce;
+    d2k_tracked_session *snapshot;
+    size_t snapshot_capacity, snapshot_count, snapshot_cursor;
+    uint64_t dump_id, dump_cut, watermark;
+    unsigned dump_phase;
+
 };
 static void increment(uint64_t *n) { if (*n != UINT64_MAX) (*n)++; }
 static uint16_t be16(const uint8_t *p) { return (uint16_t)((uint16_t)p[0]<<8 | p[1]); }
@@ -30,18 +35,21 @@ static void emit(d2k_pipeline *p, uint16_t type, const d2k_tracked_session *s,
 }
 d2k_pipeline *d2k_pipeline_new(size_t capacity, size_t events, int enforce,
                                const d2k_tracker_timeouts *timeouts) {
-    if (!events || events > SIZE_MAX/sizeof(d2k_session_event) || events > SIZE_MAX/2)
+    if (!events || events > SIZE_MAX/sizeof(d2k_session_event) || events > SIZE_MAX/2 ||
+        capacity > SIZE_MAX/sizeof(d2k_tracked_session))
         return NULL;
     d2k_pipeline *p=calloc(1,sizeof *p);
     if (!p) return NULL;
     p->tracker=d2k_session_tracker_new(capacity,timeouts);
     p->events=calloc(events,sizeof *p->events);
-    if (!p->tracker || !p->events) { d2k_pipeline_free(p); return NULL; }
+    p->snapshot=calloc(capacity,sizeof *p->snapshot);
+    p->snapshot_capacity=capacity; p->watermark=UINT64_MAX;
+    if (!p->tracker || !p->events || !p->snapshot) { d2k_pipeline_free(p); return NULL; }
     p->cap=events; p->enforce=!!enforce; return p;
 }
 void d2k_pipeline_free(d2k_pipeline *p) {
     if (!p) return;
-    d2k_session_tracker_free(p->tracker); free(p->events); free(p);
+    d2k_session_tracker_free(p->tracker); free(p->events); free(p->snapshot); free(p);
 }
 
 /* 1 = validated transport, 0 = unsupported/fragment bypass, -1 = malformed.
@@ -183,10 +191,81 @@ void d2k_session_event_encode(const d2k_session_event *e, uint8_t b[D2K_SESSION_
     memcpy(b+60,&e->key.low_port,2); memcpy(b+62,&e->key.high_port,2);
     put64(b+64,e->dropped);
 }
+static void put32(uint8_t *b, uint32_t n) {
+    b[0]=(uint8_t)(n>>24); b[1]=(uint8_t)(n>>16); b[2]=(uint8_t)(n>>8); b[3]=(uint8_t)n;
+}
+void d2k_snapshot_record_encode(const d2k_tracked_session *s, uint8_t b[D2K_DUMP_RECORD_LEN]) {
+    memset(b,0,D2K_DUMP_RECORD_LEN); b[0]=s->key.family;
+    size_t addr=s->key.family==4 ? 4 : 16;
+    memcpy(b+4,&s->key.low_addr,addr); memcpy(b+20,&s->key.high_addr,addr);
+    memcpy(b+36,&s->key.low_port,2); memcpy(b+38,&s->key.high_port,2);
+    b[40]=s->protocol; b[41]=(uint8_t)s->tcp_state;
+    b[42]=s->initiator_low; b[43]=s->role_known; b[44]=s->syn_seen;
+    b[45]=s->syn_acked; b[46]=s->fin_seen; b[47]=s->fin_acked;
+    put64(b+48,s->first_ns); put64(b+56,s->last_ns);
+    for (unsigned i=0;i<2;i++) { put32(b+64+4*i,s->syn_end[i]); put32(b+72+4*i,s->fin_end[i]); }
+}
+static void capture(void *ctx, const d2k_tracked_session *s) {
+    d2k_pipeline *p=ctx;
+    if (p->snapshot_count<p->snapshot_capacity) p->snapshot[p->snapshot_count++]=*s;
+}
+int d2k_pipeline_dump_start(d2k_pipeline *p, uint64_t id) {
+    if (!p || !id || p->dump_phase) return 0;
+    p->snapshot_count=p->snapshot_cursor=0;
+    d2k_session_tracker_visit(p->tracker,capture,p);
+    p->dump_id=id; p->dump_cut=p->sequence; p->dump_phase=1; return 1;
+}
+int d2k_pipeline_command(d2k_pipeline *p, uint16_t type, const uint8_t *b, size_t n) {
+    if (type!=D2K_CMD_SESSION_DUMP) return 0;
+    if (n!=16 || !b || b[0]!=1) return 1;
+    for (unsigned i=1;i<8;i++) if (b[i]) return 1;
+    uint64_t id=0; for (unsigned i=8;i<16;i++) id=(id<<8)|b[i];
+    (void)d2k_pipeline_dump_start(p,id); return 1;
+}
+size_t d2k_pipeline_dump_count(const d2k_pipeline *p) { return p ? p->snapshot_count : 0; }
+const d2k_tracked_session *d2k_pipeline_dump_at(const d2k_pipeline *p,size_t i) {
+    return p && i<p->snapshot_count ? &p->snapshot[i] : NULL;
+}
+uint64_t d2k_pipeline_sequence(const d2k_pipeline *p) { return p ? p->sequence : 0; }
+size_t d2k_pipeline_memory_bytes(const d2k_pipeline *p) {
+    return p ? sizeof *p+d2k_session_tracker_memory_bytes(p->tracker)+
+        p->cap*sizeof *p->events+p->snapshot_capacity*sizeof *p->snapshot : 0;
+}
+static void dump_header(uint8_t *b,uint64_t id,uint64_t seq,uint64_t aux) {
+    memset(b,0,D2K_DUMP_HEADER_LEN); b[0]=1;
+    put64(b+8,id); put64(b+16,seq); put64(b+24,aux);
+}
 void d2k_pipeline_pump(d2k_pipeline *p, d2k_ctl *ctl) {
-    if (!p || !ctl || d2k_ctl_peer_fd(ctl)<0) return;
-    d2k_session_event e; uint8_t b[D2K_SESSION_EVENT_LEN];
-    while (d2k_pipeline_pop(p,&e)) {
-        d2k_session_event_encode(&e,b); d2k_ctl_event(ctl,e.type,b,sizeof b);
+    if (!p || !ctl) return;
+    if (d2k_ctl_peer_fd(ctl)<0) { p->dump_phase=0; p->watermark=UINT64_MAX; return; }
+    unsigned budget=32;
+    while (p->dump_phase && budget>1) {
+        budget--;
+        uint8_t b[D2K_DUMP_ROW_LEN]; size_t len=D2K_DUMP_HEADER_LEN; uint16_t type;
+        uint64_t aux=p->snapshot_count;
+        if (p->dump_phase==1) type=EVENT_DUMP_BEGIN;
+        else if (p->snapshot_cursor<p->snapshot_count) {
+            type=EVENT_DUMP_ROW; aux=p->snapshot_cursor; len=sizeof b;
+            d2k_snapshot_record_encode(&p->snapshot[p->snapshot_cursor],b+D2K_DUMP_HEADER_LEN);
+        } else type=EVENT_DUMP_END;
+        dump_header(b,p->dump_id,p->dump_cut,aux);
+        if (d2k_ctl_try_event(ctl,type,b,len)!=1) return;
+        if (type==EVENT_DUMP_BEGIN) p->dump_phase=2;
+        else if (type==EVENT_DUMP_ROW) p->snapshot_cursor++;
+        else { p->dump_phase=0; p->watermark=UINT64_MAX; }
+    }
+    if (p->dump_phase) return;
+    /* Keep ring entries until accepted by the one-frame control buffer. */
+    while (budget>1 && p->count) {
+        budget--;
+        uint8_t b[D2K_SESSION_EVENT_LEN]; d2k_session_event e=p->events[p->head];
+        d2k_session_event_encode(&e,b);
+        if (d2k_ctl_try_event(ctl,e.type,b,sizeof b)!=1) return;
+        (void)d2k_pipeline_pop(p,&e);
+    }
+    /* Watermark catches loss at the TAIL even if no later event is produced. */
+    if (!p->count && p->watermark!=p->sequence) {
+        uint8_t b[D2K_DUMP_HEADER_LEN]; dump_header(b,0,p->sequence,p->dropped);
+        if (d2k_ctl_try_event(ctl,EVENT_SESSION_WATERMARK,b,sizeof b)==1) p->watermark=p->sequence;
     }
 }

@@ -330,6 +330,9 @@ func (c *Controller) Run() error {
 				return err
 			}
 		case <-tick.C:
+			if err := c.conn.PollSessionResync(); err != nil {
+				return err
+			}
 			c.pollVolume(c.now())
 		case err := <-fail:
 			if errors.Is(err, io.EOF) {

@@ -91,6 +91,9 @@ void d2k_ctl_accept(d2k_ctl *c);
 
 /* Отправляет событие. Не блокирует. */
 void d2k_ctl_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len);
+/* Nonblocking bounded retry API: 1=frame accepted (possibly pending),
+ * 0=backpressure, -1=disconnected/invalid. Does not count a retry as loss. */
+int d2k_ctl_try_event(d2k_ctl *c, uint16_t type, const uint8_t *body, size_t len);
 
 /* Дописывает недоотправленный хвост, если он есть. */
 void d2k_ctl_flush(d2k_ctl *c);

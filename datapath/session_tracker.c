@@ -253,3 +253,12 @@ size_t d2k_session_tracker_expire_notify(d2k_session_tracker *t, uint64_t now_ns
 size_t d2k_session_tracker_count(const d2k_session_tracker *t) { return t ? t->count : 0; }
 size_t d2k_session_tracker_capacity(const d2k_session_tracker *t) { return t ? t->capacity : 0; }
 uint64_t d2k_session_tracker_refusals(const d2k_session_tracker *t) { return t ? t->refusals : 0; }
+void d2k_session_tracker_visit(const d2k_session_tracker *t,
+    void (*visit)(void *, const d2k_tracked_session *), void *ctx) {
+    if (!t || !visit) return;
+    for (size_t i=0; i<t->capacity; i++)
+        if (t->slots[i].used) visit(ctx,&t->slots[i].session);
+}
+size_t d2k_session_tracker_memory_bytes(const d2k_session_tracker *t) {
+    return t ? sizeof *t + t->capacity*sizeof *t->slots + t->bucket_count*sizeof *t->buckets : 0;
+}
