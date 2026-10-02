@@ -9,7 +9,13 @@ ENTWARE_URL="https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.ta
 ROOTFS_MOUNT="$ROOT/rootfs"
 OPT_MOUNT="$ROOT/opt"
 QEMU_LOG="$ROOT/qemu.log"
+# Keep boot diagnostics outside the temporary Buildroot tree, even on failure.
+QEMU_EVIDENCE="$(pwd)/qemu-mips-entware-system.log"
 cleanup() {
+  if [ -f "$QEMU_LOG" ]; then
+    cp "$QEMU_LOG" "$QEMU_EVIDENCE" || true
+    echo "QEMU evidence: $QEMU_EVIDENCE" >&2
+  fi
   sudo umount "$OPT_MOUNT" 2>/dev/null || true
   sudo umount "$ROOTFS_MOUNT" 2>/dev/null || true
   rm -rf "$ROOT"
@@ -34,6 +40,12 @@ curl --fail --silent --show-error --location --retry 3 -o "$INSTALLER" "$ENTWARE
 tar -xzf "$INSTALLER" -C "$OPT_MOUNT" --no-same-owner
 [ -x "$OPT_MOUNT/opt/bin/opkg" ]
 [ -f "$OPT_MOUNT/opt/etc/opkg.conf" ]
+# The installer archive contains opt/... paths, but the disk itself is mounted
+# at /opt inside the guest. Flatten exactly one opt/ level to avoid /opt/opt/.
+cp -a "$OPT_MOUNT/opt/." "$OPT_MOUNT/"
+rm -rf "$OPT_MOUNT/opt"
+[ -x "$OPT_MOUNT/bin/opkg" ]
+[ -f "$OPT_MOUNT/etc/opkg.conf" ]
 echo "== Inject boot-time /opt mount into Buildroot rootfs =="
 sudo mount -o loop "$BR/output/images/rootfs.ext2" "$ROOTFS_MOUNT"
 sudo mkdir -p "$ROOTFS_MOUNT/opt" "$ROOTFS_MOUNT/etc/init.d"
@@ -56,10 +68,18 @@ set +e
 timeout 90s qemu-system-mipsel -M malta -m 256 -kernel output/images/vmlinux -drive file=output/images/rootfs.ext2,format=raw,if=ide,index=0 -drive file="$OPT_IMAGE",format=raw,if=ide,index=1 -append "rootwait root=/dev/sda console=ttyS0" -net nic,model=pcnet -net user -nographic -no-reboot > "$QEMU_LOG" 2>&1
 RC=$?
 set -e
-grep -q "Linux version" "$QEMU_LOG"
-grep -q -E "pcnet32|eth0" "$QEMU_LOG"
-grep -q "HOPPER_OPT_MOUNT: GREEN" "$QEMU_LOG"
-grep -q "opkg version" "$QEMU_LOG"
+cp "$QEMU_LOG" "$QEMU_EVIDENCE"
+require_boot_marker() {
+  if ! grep -q -E "$1" "$QEMU_LOG"; then
+    echo "MIPS Entware lab missing boot marker: $2 (QEMU exit $RC)" >&2
+    tail -n 90 "$QEMU_LOG" >&2
+    exit 1
+  fi
+}
+require_boot_marker "Linux version" "Linux version"
+require_boot_marker "pcnet32|eth0" "network interface"
+require_boot_marker "HOPPER_OPT_MOUNT: GREEN" "EXT4 /opt and opkg"
+require_boot_marker "opkg version" "opkg execution"
 sed -n '/Linux version/p;/pcnet32/p;/eth0/p;/HOPPER_OPT_MOUNT/p;/opkg version/p' "$QEMU_LOG" | head -n 80
 if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then exit "$RC"; fi
 echo "HOPPER3810 MIPS SYSTEM + ENTWARE LAB: GREEN"
