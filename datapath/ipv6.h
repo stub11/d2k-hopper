@@ -13,7 +13,6 @@
 #define D2K_IP6_OTHER 0
 #define D2K_IP6_TCP 1
 #define D2K_IP6_MAX_EXT_HEADERS 8
-#define D2K_TCP_MIN_HDR_LEN 20u
 
 struct d2k_ip6_info {
     const struct ip6_hdr *ip6h;
@@ -85,14 +84,14 @@ static inline int d2k_parse_ipv6(const uint8_t *data, size_t len,
     }
 
 found_tcp:
-    if (off + D2K_TCP_MIN_HDR_LEN > end)
+    if (off + 20u > end)
         return D2K_IP6_ERR;
 
     /* Read data-offset from the wire bytes instead of a bit-field: this avoids
      * implementation/endian assumptions and unaligned struct access on MIPS. */
     uint8_t doff_byte = data[off + 12];
     size_t tcp_hdr_len = (size_t)(doff_byte >> 4) * 4u;
-    if (tcp_hdr_len < D2K_TCP_MIN_HDR_LEN || tcp_hdr_len > end - off)
+    if (tcp_hdr_len < 20u || tcp_hdr_len > end - off)
         return D2K_IP6_ERR;
 
     info->tcph = (const struct tcphdr *)(data + off);
@@ -112,10 +111,10 @@ static inline uint16_t d2k_tcp_checksum_ipv6(const struct in6_addr *src,
     uint32_t sum = 0;
     const uint8_t *p = (const uint8_t *)src;
     size_t i;
-    for (i = 0; i < 16; i += 2)
+    for (i = 0; i < 32; i += 2)
         sum += ((uint32_t)p[i] << 8) | p[i + 1];
     p = (const uint8_t *)dst;
-    for (i = 0; i < 16; i += 2)
+    for (i = 0; i < 32; i += 2)
         sum += ((uint32_t)p[i] << 8) | p[i + 1];
     sum += (uint32_t)(tcp_len >> 16);
     sum += (uint32_t)(tcp_len & 0xffffu);
