@@ -162,15 +162,15 @@ void d2k_ctlsrv_pump(d2k_ctl *ctl, const d2k_session *s, uint64_t *seen) {
         uint8_t body[16 + 2048 + 8];
         size_t key_len;
         if (e->key.family == D2K_KEY_IPV6) {
-            memcpy(body + 0, e->key.low_ip6, 16);
-            memcpy(body + 16, e->key.high_ip6, 16);
+            memcpy(body + 0, e->key.low_addr.v6.s6_addr, 16);
+            memcpy(body + 16, e->key.high_addr.v6.s6_addr, 16);
             memcpy(body + 32, &e->key.low_port, 2);
             memcpy(body + 34, &e->key.high_port, 2);
             key_len = D2K_CTL_KEY6_LEN;
         } else {
             /* Preserve the established IPv4 12-byte event ABI. */
-            memcpy(body + 0, &e->key.low_ip, 4);
-            memcpy(body + 4, &e->key.high_ip, 4);
+            memcpy(body + 0, &e->key.low_addr.v4, 4);
+            memcpy(body + 4, &e->key.high_addr.v4, 4);
             memcpy(body + 8, &e->key.low_port, 2);
             memcpy(body + 10, &e->key.high_port, 2);
             key_len = D2K_CTL_KEY4_LEN;
