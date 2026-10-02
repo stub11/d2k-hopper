@@ -36,6 +36,7 @@
 #include "d2k_raw.h"
 #include "d2k_sched.h"
 #include "d2k_session.h"
+#include "ipv6.h"
 
 /* Константы времени с явной шириной. Смешивать uint64_t с суффиксом ULL
    нельзя: на aarch64 это разные типы, и printf расходится с аргументом. */
@@ -297,8 +298,8 @@ static void print_journal(const d2k_session *s, uint64_t start) {
            о направлении. */
         if (e->key.family == D2K_KEY_IPV6) {
             char la[INET6_ADDRSTRLEN], ha[INET6_ADDRSTRLEN];
-            if (inet_ntop(AF_INET6, e->key.low_ip6, la, sizeof la) &&
-                inet_ntop(AF_INET6, e->key.high_ip6, ha, sizeof ha)) {
+            if (inet_ntop(AF_INET6, e->key.low_addr.v6.s6_addr, la, sizeof la) &&
+                inet_ntop(AF_INET6, e->key.high_addr.v6.s6_addr, ha, sizeof ha)) {
                 printf("  %6" PRIu64 " мс  [%s]:%u - [%s]:%u  %s%s%s%s\\n",
                        (e->at_ns - start) / NS_PER_MS, la, port_of(&e->key.low_port),
                        ha, port_of(&e->key.high_port), jrn_kind(e->kind),
@@ -306,8 +307,8 @@ static void print_journal(const d2k_session *s, uint64_t start) {
                        e->note ? e->note : "");
             }
         } else {
-            const uint8_t *la = (const uint8_t *)&e->key.low_ip;
-            const uint8_t *ha = (const uint8_t *)&e->key.high_ip;
+            const uint8_t *la = (const uint8_t *)&e->key.low_addr.v4;
+            const uint8_t *ha = (const uint8_t *)&e->key.high_addr.v4;
             printf("  %6" PRIu64 " мс  %u.%u.%u.%u:%u - %u.%u.%u.%u:%u  %s%s%s%s\\n",
                    (e->at_ns - start) / NS_PER_MS,
                    la[0], la[1], la[2], la[3], port_of(&e->key.low_port),
@@ -635,8 +636,21 @@ int main(int argc, char **argv) {
                         st.truncated++;
                         res.skipped = "пакет обрезан copy_range";
                     } else {
-                        d2k_session_packet(sess, np.payload, np.payload_len, t,
-                                           obuf, sizeof obuf, &res);
+                        if ((np.payload[0] >> 4) == 6) {
+                            struct d2k_ip6_info ip6;
+                            int ip6_rc = d2k_parse_ipv6(np.payload, np.payload_len, &ip6);
+                            if (ip6_rc == D2K_IP6_ERR) {
+                                res.skipped = "некорректный IPv6";
+                            } else if (ip6_rc != D2K_IP6_TCP) {
+                                res.skipped = "IPv6 не TCP";
+                            } else {
+                                d2k_session_packet_ipv6(sess, np.payload, np.payload_len,
+                                                         &ip6, t, obuf, sizeof obuf, &res);
+                            }
+                        } else {
+                            d2k_session_packet(sess, np.payload, np.payload_len, t,
+                                               obuf, sizeof obuf, &res);
+                        }
                     }
 
                     if (res.skipped) {
