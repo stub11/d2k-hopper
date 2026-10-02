@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <netinet/in.h>
 
 #include "d2k_plan.h"
 
@@ -31,10 +32,14 @@
  * второй поток, и план мог бы примениться к одному соединению дважды. */
 typedef struct {
     uint8_t  family;          /* AF_INET or AF_INET6 */
-    uint8_t  low_ip6[16];
-    uint8_t  high_ip6[16];
-    uint32_t low_ip;          /* IPv4 address, retained for IPv4 journal ABI */
-    uint32_t high_ip;
+    union {
+        struct in_addr v4;
+        struct in6_addr v6;
+    } low_addr;
+    union {
+        struct in_addr v4;
+        struct in6_addr v6;
+    } high_addr;
     uint16_t low_port;
     uint16_t high_port;
 } d2k_key;
