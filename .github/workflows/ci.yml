@@ -116,6 +116,9 @@ jobs:
       - name: Тесты исполнителя планов
         run: make -C datapath check
 
+      - name: IPv6 pipeline
+        run: cd datapath && make test-ipv6-pipeline
+
       - name: Тесты под санитайзерами
         # «Не упало» и «не читало за буфером» — разные утверждения, а весь
         # датапат состоит из разбора чужих байтов.
