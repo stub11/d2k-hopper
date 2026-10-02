@@ -79,7 +79,7 @@ func TestNextParsesTypedIPv6Key(t *testing.T) {
 			return
 		}
 		defer c.Close()
-		body := make([]byte, 36)
+		body := make([]byte, 37) // Key plus the required empty-name length.
 		for i := 0; i < 16; i++ {
 			body[i] = byte(i)
 			body[16+i] = byte(16 + i)
