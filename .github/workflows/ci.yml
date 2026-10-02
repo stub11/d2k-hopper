@@ -196,4 +196,4 @@ jobs:
       - name: Real dual-stack veth and namespace bridge
         run: |
           go test -c -o /tmp/d2k-veth-tests ./tests
-          sudo env D2K_REQUIRE_VETH=1 /tmp/d2k-veth-tests -test.run '^TestE2EVethDualStack$' -test.v -test.timeout 60s
+          sudo env D2K_REQUIRE_VETH=1 D2K_NFQ_PROBE="$PWD/datapath/nfqueue_libprobe" /tmp/d2k-veth-tests -test.run '^TestE2EVethDualStack$' -test.v -test.timeout 60s

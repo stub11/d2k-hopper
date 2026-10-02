@@ -65,10 +65,24 @@ func TestE2ERealRingLossResync(t *testing.T) {
 		t.Fatalf("bad resync: full=%d active=%d complete=%v seq=%d", len(full), len(active), complete, seq)
 	}
 	expected := make(map[control.SessionID]control.TCPState)
-	for id, rec := range full {
+	for i, packet := range packets {
+		key := control.Key{Family: packet[0] >> 4}
+		ip := 20
+		if key.Family == 4 {
+			copy(key.LowIP[:], packet[12:16])
+			copy(key.HighIP[:], packet[16:20])
+		} else {
+			ip = 40
+			copy(key.LowIP6[:], packet[8:24])
+			copy(key.HighIP6[:], packet[24:40])
+		}
+		key.LowPort = binary.BigEndian.Uint16(packet[ip:])
+		key.HighPort = binary.BigEndian.Uint16(packet[ip+2:])
+		id := control.SessionID{Key: key, Protocol: 17}
 		expected[id] = control.TCPUnknown
-		if rec.FirstNS != rec.LastNS || rec.LastNS < 1 || rec.LastNS > 3 {
-			t.Fatal("C metadata mismatch")
+		rec, exists := full[id]
+		if !exists || rec.FirstNS != uint64(i+1) || rec.LastNS != uint64(i+1) || rec.State != control.TCPUnknown {
+			t.Fatalf("C snapshot differs from injected flow: %#v %#v", id, rec)
 		}
 	}
 	if !reflect.DeepEqual(active, expected) {

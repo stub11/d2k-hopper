@@ -74,7 +74,11 @@ func TestE2EVethDualStack(t *testing.T) {
 			}
 		}
 	}
-	probe, err := filepath.Abs("../datapath/nfqueue_libprobe")
+	probePath := os.Getenv("D2K_NFQ_PROBE")
+	if probePath == "" {
+		probePath = "../datapath/nfqueue_libprobe"
+	}
+	probe, err := filepath.Abs(probePath)
 	if err != nil {
 		t.Fatal(err)
 	}
