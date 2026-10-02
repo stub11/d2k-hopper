@@ -151,3 +151,19 @@ jobs:
             echo "== $cc =="
             "$cc" -O2 -Wall -Wextra -Werror -c -o /tmp/nfqview-$cc.o nfqview.c
           done
+
+  session-tracker-cross:
+    name: C tracker — девять архитектур
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Закреплённый Zig 0.15.1
+        run: |
+          set -eu
+          curl --fail --location --retry 3 --output /tmp/zig.tar.xz \
+            https://ziglang.org/download/0.15.1/zig-x86_64-linux-0.15.1.tar.xz
+          echo 'c61c5da6edeea14ca51ecd5e4520c6f4189ef5250383db33d01848293bfafe05  /tmp/zig.tar.xz' | sha256sum -c -
+          tar -xJf /tmp/zig.tar.xz -C /tmp
+          echo /tmp/zig-x86_64-linux-0.15.1 >> "$GITHUB_PATH"
+      - name: Все переносимые C units/tests под девять арок
+        run: sh scripts/check-session-tracker-cross.sh
