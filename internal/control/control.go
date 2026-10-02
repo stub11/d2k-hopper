@@ -122,9 +122,10 @@ func parseKey(b []byte) (Key, error) {
 
 // Event — то, что датапат увидел.
 type Event struct {
-	Type uint16
-	Key  Key
-	Key6 Key6
+	Session *SessionEvent // nonnil for the versioned Vertical 2 session events
+	Type    uint16
+	Key     Key
+	Key6    Key6
 	// Имя цели для EvHello. Пустое — нормальное состояние (§5.3), а не сбой.
 	Name string
 	// Код причины для EvSuspect.
@@ -292,6 +293,20 @@ func (c *Conn) Next() (Event, error) {
 	body := make([]byte, plen-2)
 	if _, err := io.ReadFull(c.c, body); err != nil {
 		return ev, err
+	}
+
+	if ev.Type >= EvSessionCreated && ev.Type <= EvSessionClosed {
+		session, err := DecodeSessionEvent(ev.Type, body)
+		if err != nil {
+			return ev, err
+		}
+		ev.Session = &session
+		ev.Key = session.Key
+		if ev.Key.Family == 6 {
+			ev.Key6 = Key6{LowIP6: ev.Key.LowIP6, HighIP6: ev.Key.HighIP6,
+				LowPort: ev.Key.LowPort, HighPort: ev.Key.HighPort}
+		}
+		return ev, nil
 	}
 
 	// Подтверждение команды ключа потока не имеет: оно не про поток. Но

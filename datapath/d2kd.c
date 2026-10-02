@@ -30,6 +30,7 @@
 
 #include "d2k_ctl.h"
 #include "d2k_ctlsrv.h"
+#include "nfqueue_handler.h"
 #include "d2k_journal.h"
 #include "d2k_nfq.h"
 #include "d2k_nl.h"
@@ -164,6 +165,7 @@ static void usage(void) {
         "  --queue N          номер очереди NFQUEUE (обязательно)\n"
         "  --plan FILE        план в канонической форме TLV\n"
         "  --mode observe|apply   умолчание observe: ничего не менять\n"
+        "  --stateful off|observe|enforce  умолчание observe; enforce требует apply\n"
         "  --mark M           SO_MARK на собственных пакетах (умолчание 0)\n"
         "  --flows N          предел числа отслеживаемых потоков (2048)\n"
         "  --queue-len N      глубина очереди ядра в пакетах (1024)\n"
@@ -332,6 +334,7 @@ int main(int argc, char **argv) {
     uint32_t slots = 128, idle_s = 120, stats_s = 10, duration_s = 0;
     uint32_t journal = 256;
     int fail_open = 1;
+    int stateful = 1; /* observe without changing existing verdicts */
 
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -351,6 +354,13 @@ int main(int argc, char **argv) {
         else if (strcmp(a, "--stats") == 0)       { NEEDV(); if (arg_u32(v, &stats_s)) goto badval; }
         else if (strcmp(a, "--duration") == 0)    { NEEDV(); if (arg_u32(v, &duration_s)) goto badval; }
         else if (strcmp(a, "--no-fail-open") == 0) { fail_open = 0; }
+        else if (strcmp(a, "--stateful") == 0) {
+            NEEDV();
+            if (strcmp(v,"off")==0) stateful=0;
+            else if (strcmp(v,"observe")==0) stateful=1;
+            else if (strcmp(v,"enforce")==0) stateful=2;
+            else goto badval;
+        }
         else if (strcmp(a, "--mode") == 0) {
             NEEDV();
             if (strcmp(v, "observe") == 0)      { mode = MODE_OBSERVE; }
@@ -366,6 +376,9 @@ int main(int argc, char **argv) {
         return 2;
     }
 
+    if (stateful==2 && mode!=MODE_APPLY) {
+        fprintf(stderr,"--stateful enforce требует --mode apply\n"); return 2;
+    }
     if (!have_queue) {
         fprintf(stderr, "не задан --queue\n");
         usage();
@@ -482,9 +495,14 @@ int main(int argc, char **argv) {
 
     d2k_session *sess = d2k_session_new(flows, journal);
     d2k_sched   *sched = d2k_sched_new(slots, copy_range);
-    if (!sess || !sched) {
+    d2k_tracker_timeouts tracker_timeouts;
+    d2k_session_tracker_defaults(&tracker_timeouts);
+    if (idle_s) tracker_timeouts.udp_idle_ns=(uint64_t)idle_s*NS_PER_S;
+    d2k_pipeline *pipeline=stateful ? d2k_pipeline_new(flows,256,stateful==2,&tracker_timeouts) : NULL;
+    if (!sess || !sched || (stateful && !pipeline)) {
         fprintf(stderr, "не хватило памяти на состояние\n");
         d2k_ctl_close(ctl);
+        d2k_pipeline_free(pipeline);
         d2k_sched_free(sched);
         d2k_session_free(sess);
         d2k_nfq_close(q);
@@ -628,7 +646,7 @@ int main(int argc, char **argv) {
                     memset(&res, 0, sizeof res);
                     res.verdict = D2K_VERDICT_ACCEPT;
 
-                    if (!np.have_payload) {
+                    if (!np.have_payload || !np.payload_len) {
                         st.no_payload++;
                         res.skipped = "ядро не отдало пакет";
                     } else if (np.truncated) {
@@ -636,7 +654,10 @@ int main(int argc, char **argv) {
                         st.truncated++;
                         res.skipped = "пакет обрезан copy_range";
                     } else {
-                        if ((np.payload[0] >> 4) == 6) {
+                        d2k_pipeline_result tracked=d2k_nfqueue_handle(pipeline,np.payload,np.payload_len,t);
+                        if (tracked.verdict==D2K_NF_DROP) {
+                            verdict=D2K_NF_DROP; res.skipped="stateful policy reject";
+                        } else if ((np.payload[0] >> 4) == 6) {
                             struct d2k_ip6_info ip6;
                             int ip6_rc = d2k_parse_ipv6(np.payload, np.payload_len, &ip6);
                             if (ip6_rc == D2K_IP6_ERR) {
@@ -725,13 +746,17 @@ int main(int argc, char **argv) {
 
         if (t >= next_expire) {
             d2k_session_expire(sess, t, idle_ns);
+            d2k_pipeline_expire(pipeline,t);
             next_expire = t + NS_PER_S;
         }
         if (ctl) {
             d2k_ctlsrv_pump(ctl, sess, &events_seen);
+            d2k_pipeline_pump(pipeline,ctl);
         }
         if (next_stats && t >= next_stats) {
             print_stats(sess, sched, q, raw, t - start);
+            printf("stateful: sessions=%zu refusals=%" PRIu64 " event_drops=%" PRIu64 "\n",
+                d2k_pipeline_count(pipeline),d2k_pipeline_refusals(pipeline),d2k_pipeline_event_drops(pipeline));
             next_stats = t + (uint64_t)stats_s * NS_PER_S;
         }
     }
@@ -741,6 +766,7 @@ int main(int argc, char **argv) {
     print_journal(sess, start);
 
     d2k_ctl_close(ctl);
+    d2k_pipeline_free(pipeline);
     d2k_sched_free(sched);
     d2k_session_free(sess);
     d2k_nfq_close(q);

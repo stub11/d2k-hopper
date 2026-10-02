@@ -50,7 +50,7 @@ jobs:
         # Тесты моста гоняют planlab и ctlprobe — тот же исполнитель и тот же
         # разбор команд, что пойдут в прод. Без них тесты не пропустятся, а
         # упадут: пропущенный тест выглядит как пройденный.
-        run: make -C datapath planlab ctlprobe
+        run: make -C datapath planlab ctlprobe pipelineprobe
 
       - name: Тесты с детектором гонок
         # -race обязателен: локальный CI z2k однажды его не гонял, и релиз
@@ -167,3 +167,17 @@ jobs:
           echo /tmp/zig-x86_64-linux-0.15.1 >> "$GITHUB_PATH"
       - name: Все переносимые C units/tests под девять арок
         run: sh scripts/check-session-tracker-cross.sh
+
+  stateful-nfqueue:
+    name: Stateful — real Linux NFQUEUE
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Native libnetfilter_queue tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libnetfilter-queue-dev iproute2 iptables
+      - name: Build production callback adapter and Linux lab
+        run: make -C datapath nfqueue_libprobe
+      - name: Isolated netns — real queue and verdicts
+        run: sudo sh scripts/check-stateful-nfq.sh

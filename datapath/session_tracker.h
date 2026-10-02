@@ -86,6 +86,10 @@ const d2k_tracked_session *d2k_session_tracker_udp(
 /* Maintenance O(capacity), expiry at idle >= timeout. No unsigned underflow
  * on a backwards clock. expire does not move surviving records. */
 size_t d2k_session_tracker_expire(d2k_session_tracker *tracker, uint64_t now_ns);
+/* Callback borrows the expiring record immediately before removal; it MUST
+ * NOT mutate the tracker or retain that pointer. */
+size_t d2k_session_tracker_expire_notify(d2k_session_tracker *tracker, uint64_t now_ns,
+    void (*notify)(void *, const d2k_tracked_session *, uint64_t), void *ctx);
 size_t d2k_session_tracker_count(const d2k_session_tracker *tracker);
 size_t d2k_session_tracker_capacity(const d2k_session_tracker *tracker);
 uint64_t d2k_session_tracker_refusals(const d2k_session_tracker *tracker);
