@@ -67,7 +67,8 @@ echo "== MIPS d2kd smoke: только CLI parser =="
     -o "$ROOT/bin/d2kd" \
     datapath/d2kd.c datapath/nfq.c datapath/raw.c datapath/plan_parse.c \
     datapath/plan_apply.c datapath/tls.c datapath/wire.c datapath/track.c \
-    datapath/session.c datapath/nl.c datapath/sched.c datapath/journal.c \
+    datapath/session.c datapath/session_tracker.c datapath/d2k_pipeline.c \
+    datapath/nfqueue_handler.c datapath/nl.c datapath/sched.c datapath/journal.c \
     datapath/plans.c datapath/ctl.c datapath/ctlsrv.c
 
 set +e
