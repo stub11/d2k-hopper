@@ -137,6 +137,64 @@ func TestСобытиеПриветствияДоезжает(t *testing.T) {
 	}
 }
 
+// Real packets -> C session/journal -> C socket encoder -> Go decoder.
+// A reverse packet must reuse the flow and serialize the same canonical key.
+func TestDualStackFlowKeyE2E(t *testing.T) {
+	for _, ipv6 := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ipv6=%t", ipv6), func(t *testing.T) {
+			p, sock := start(t)
+			c := dial(t, sock)
+			command := "hello example.net"
+			helloType, exchangeType := control.EvHello, control.EvExchange
+			want := control.Key{
+				Family: 4, LowIP: [4]byte{93, 184, 216, 34},
+				HighIP: [4]byte{192, 168, 1, 67}, LowPort: 443, HighPort: 40001,
+			}
+			if ipv6 {
+				command = "hello6 example.net"
+				helloType, exchangeType = control.EvHello6, control.EvExchange6
+				want = control.Key{
+					Family:  6,
+					LowIP6:  [16]byte{0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+					HighIP6: [16]byte{0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+					LowPort: 443, HighPort: 40001,
+				}
+			}
+			p.say(t, command)
+			hello, err := c.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if hello.Type != helloType || hello.Key != want || hello.Name != "example.net" {
+				t.Fatalf("hello: %+v; want type=%d key=%+v name=example.net", hello, helloType, want)
+			}
+			if ipv6 && (hello.Key6.LowIP6 != want.LowIP6 || hello.Key6.HighIP6 != want.HighIP6 ||
+				hello.Key6.LowPort != want.LowPort || hello.Key6.HighPort != want.HighPort) {
+				t.Fatalf("legacy Key6 disagrees with unified Key: %+v", hello.Key6)
+			}
+			if got := p.say(t, "flows"); got != "flows 1" {
+				t.Fatalf("forward handshake: %s", got)
+			}
+			p.say(t, "reply 22")
+			exchange, err := c.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if exchange.Type != exchangeType || exchange.Key != want ||
+				exchange.RecordType != control.TLSHandshake || exchange.Bytes != 64 || exchange.SeenTypes != 4 {
+				t.Fatalf("reverse exchange: %+v; want type=%d key=%+v TLSHandshake bytes=64 mask=4", exchange, exchangeType, want)
+			}
+			if got := p.say(t, "flows"); got != "flows 1" {
+				t.Fatalf("reverse packet duplicated flow: %s", got)
+			}
+			p.say(t, "rst")
+			if got := p.say(t, "flows"); got != "flows 0" {
+				t.Fatalf("reverse RST did not remove the canonical flow: %s", got)
+			}
+		})
+	}
+}
+
 func TestПодозрениеПриходитКодом(t *testing.T) {
 	p, sock := start(t)
 	c := dial(t, sock)

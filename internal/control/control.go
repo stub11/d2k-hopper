@@ -111,6 +111,7 @@ func parseKey(b []byte) (Key, error) {
 	if len(b) < 12 {
 		return k, errors.New("ключ потока короче 12 байт")
 	}
+	k.Family = 4
 	copy(k.LowIP[:], b[0:4])
 	copy(k.HighIP[:], b[4:8])
 	// Порты лежат в сетевом порядке — ровно как в заголовке.
@@ -321,7 +322,7 @@ func (c *Conn) Next() (Event, error) {
 	}
 
 	switch ev.Type {
-	case EvHello:
+	case EvHello, EvHello6:
 		if len(rest) < 1 {
 			return ev, errors.New("приветствие без длины имени")
 		}
@@ -330,7 +331,7 @@ func (c *Conn) Next() (Event, error) {
 			return ev, errors.New("имя короче объявленного")
 		}
 		ev.Name = string(rest[1 : 1+n])
-	case EvSuspect:
+	case EvSuspect, EvSuspect6:
 		if len(rest) < 1 {
 			return ev, errors.New("подозрение без кода")
 		}
@@ -341,9 +342,9 @@ func (c *Conn) Next() (Event, error) {
 			ev.ToS = rest[3]
 			ev.IPID = binary.BigEndian.Uint16(rest[4:6])
 		}
-	case EvRefused:
+	case EvRefused, EvRefused6:
 		ev.Note = string(rest)
-	case EvShape:
+	case EvShape, EvShape6:
 		ev.Shape = append([]byte(nil), rest...)
 	case EvAck:
 		if len(rest) < 3 {
@@ -351,7 +352,7 @@ func (c *Conn) Next() (Event, error) {
 		}
 		ev.AckOf = binary.BigEndian.Uint16(rest[0:2])
 		ev.AckOK = rest[2] == 1
-	case EvExchange:
+	case EvExchange, EvExchange6:
 		if len(rest) < 5 {
 			return ev, errors.New("обмен без типа записи и длины")
 		}

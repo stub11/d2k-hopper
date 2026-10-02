@@ -44,14 +44,14 @@ static void test_ipv6_key(void) {
     d2k_key out, rev;
     int low = d2k_key_make6(&out, a, b, p1, p2);
     int rev_low = d2k_key_make6(&rev, b, a, p2, p1);
-    assert(out.family == D2K_KEY_IPV6);
-    assert(rev.family == D2K_KEY_IPV6);
-    assert(memcmp(&out, &rev, sizeof out) == 0);
-    assert(low == !rev_low);
-    assert(out.low_port == (uint16_t)0x01bb);
-    assert(memcmp(&out.low_addr.v6, a, 16) == 0 || memcmp(&out.low_addr.v6, b, 16) == 0);
-    assert(memcmp(&out.high_addr.v6, a, 16) == 0 || memcmp(&out.high_addr.v6, b, 16) == 0);
-    puts("  PASS: IPv6 canonical flow key");
+    CHECK(out.family == D2K_KEY_IPV6 && rev.family == D2K_KEY_IPV6,
+          "IPv6 family");
+    CHECK(memcmp(&out, &rev, sizeof out) == 0, "IPv6 bidirectional key");
+    CHECK(low == 1 && rev_low == 0, "IPv6 direction");
+    CHECK(memcmp(&out.low_port, p1, 2) == 0, "IPv6 low port network bytes");
+    CHECK(memcmp(&out.high_port, p2, 2) == 0, "IPv6 high port network bytes");
+    CHECK(memcmp(out.low_addr.v6.s6_addr, a, 16) == 0, "IPv6 low address");
+    CHECK(memcmp(out.high_addr.v6.s6_addr, b, 16) == 0, "IPv6 high address");
 }
 
 int main(void) {

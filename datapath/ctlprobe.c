@@ -12,6 +12,7 @@
  *
  * Команды со stdin, по строке:
  *   hello <имя>   пропустить через сессию приветствие с этим именем
+ *   hello6 <имя>  то же для IPv6; reply/rst отвечают по последнему семейству
  *   rst           сброс с чужим TTL по последнему потоку
  *   reply <тип>   ответ сервера с нагрузкой (тип TLS-записи, напр. 22 или 23)
  *   raw <hex>     пропустить произвольную нагрузку как приветствие клиента
@@ -92,6 +93,30 @@ static size_t build_pkt(uint8_t *o, int reverse, uint16_t port, uint8_t flags,
     return total;
 }
 
+static size_t build_pkt6(uint8_t *o, int reverse, uint16_t port, uint8_t flags,
+                         uint8_t ttl, const uint8_t *pay, size_t paylen) {
+    const uint8_t lan[16] = {0x20,1,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,2};
+    const uint8_t wan[16] = {0x20,1,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1};
+    size_t total = 60 + paylen;
+    memset(o, 0, 60);
+    o[0] = 0x60;
+    wr16(o + 4, (uint16_t)(20 + paylen));
+    o[6] = 6; o[7] = ttl;
+    memcpy(o + 8, reverse ? wan : lan, 16);
+    memcpy(o + 24, reverse ? lan : wan, 16);
+    wr16(o + 40, reverse ? 443 : port);
+    wr16(o + 42, reverse ? port : 443);
+    wr32(o + 44, 1000); wr32(o + 48, 2000);
+    o[52] = 0x50; o[53] = flags;
+    wr16(o + 54, 64240);
+    if (paylen) memcpy(o + 60, pay, paylen);
+    struct in6_addr src, dst;
+    memcpy(src.s6_addr, o + 8, 16);
+    memcpy(dst.s6_addr, o + 24, 16);
+    wr16(o + 56, d2k_tcp_checksum_ipv6(&src, &dst, o + 40, 20 + paylen));
+    return total;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "использование: ctlprobe <путь сокета>\n");
@@ -120,6 +145,8 @@ int main(int argc, char **argv) {
     uint64_t seen = 0;
     uint64_t now = 1000;
     uint16_t port = 40000;
+    size_t (*packet)(uint8_t *, int, uint16_t, uint8_t, uint8_t,
+                     const uint8_t *, size_t) = build_pkt;
     setvbuf(stdout, NULL, _IOLBF, 0);
     printf("готов\n");
 
@@ -153,21 +180,25 @@ int main(int argc, char **argv) {
             uint8_t pkt[2048], buf[4096];
             d2k_result r;
 
-            if (strncmp(line, "hello ", 6) == 0) {
+            if (strncmp(line, "hello ", 6) == 0 || strncmp(line, "hello6 ", 7) == 0) {
+                int ipv6 = line[5] == '6';
+                const char *name = line + (ipv6 ? 7 : 6);
+                packet = ipv6 ? build_pkt6 : build_pkt;
                 uint8_t hello[1024];
-                size_t hl = build_hello(hello, line + 6);
+                size_t hl = build_hello(hello, name);
                 port++;
                 /* Рукопожатие целиком: SYN, SYN-ACK, приветствие. Без SYN-ACK
                    защите не от чего отсчитывать ориентир. */
-                size_t sz = build_pkt(pkt, 0, port, 0x02, 64, NULL, 0);
+                size_t sz = packet(pkt, 0, port, 0x02, 64, NULL, 0);
                 d2k_session_packet(sess, pkt, sz, now++, buf, sizeof buf, &r);
-                sz = build_pkt(pkt, 1, port, 0x12, 124, NULL, 0);
+                sz = packet(pkt, 1, port, 0x12, 124, NULL, 0);
                 d2k_session_packet(sess, pkt, sz, now++, buf, sizeof buf, &r);
-                sz = build_pkt(pkt, 0, port, 0x18, 64, hello, hl);
+                sz = packet(pkt, 0, port, 0x18, 64, hello, hl);
                 d2k_session_packet(sess, pkt, sz, now++, buf, sizeof buf, &r);
-                printf("hello %s: посылок %zu, пропуск %s\n", line + 6, r.n_out,
+                printf("hello %s: посылок %zu, пропуск %s\n", name, r.n_out,
                        r.skipped ? r.skipped : "нет");
             } else if (strncmp(line, "raw ", 4) == 0) {
+                packet = build_pkt;
                 /* Произвольные байты как нагрузка клиента. Нужно, чтобы
                    проверить приманку, собранную на Go, ТЕМ ЖЕ разборщиком,
                    что стоит на пакетном пути: сверка двух реализаций на глаз
@@ -205,15 +236,17 @@ int main(int argc, char **argv) {
                 rec[0] = (uint8_t)atoi(line + 6);
                 rec[1] = 0x03; rec[2] = 0x03;
                 rec[3] = 0x00; rec[4] = 0x28;
-                size_t sz = build_pkt(pkt, 1, port, 0x18, 124, rec, sizeof rec);
+                size_t sz = packet(pkt, 1, port, 0x18, 124, rec, sizeof rec);
                 d2k_session_packet(sess, pkt, sz, now++, buf, sizeof buf, &r);
                 printf("reply: обменов %llu\n",
                        (unsigned long long)d2k_session_exchanges(sess));
             } else if (strcmp(line, "rst") == 0) {
-                size_t sz = build_pkt(pkt, 1, port, 0x14, 127, NULL, 0);
+                size_t sz = packet(pkt, 1, port, 0x14, 127, NULL, 0);
                 d2k_session_packet(sess, pkt, sz, now++, buf, sizeof buf, &r);
                 printf("rst: вердикт %s\n",
                        r.verdict == D2K_VERDICT_DROP ? "снять" : "пропустить");
+            } else if (strcmp(line, "flows") == 0) {
+                printf("flows %zu\n", d2k_session_flows(sess));
             } else if (strcmp(line, "shape") == 0) {
                 size_t sl = 0;
                 const uint8_t *sh = d2k_session_shape(sess, &sl);

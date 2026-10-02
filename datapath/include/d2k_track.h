@@ -31,7 +31,7 @@
  * есть, у соединения его нет. Без канонизации ответное направление заводило бы
  * второй поток, и план мог бы примениться к одному соединению дважды. */
 typedef struct {
-    uint8_t  family;          /* AF_INET or AF_INET6 */
+    uint8_t  family;          /* D2K_KEY_IPV4 (4) or D2K_KEY_IPV6 (6) */
     union {
         struct in_addr v4;
         struct in6_addr v6;
