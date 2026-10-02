@@ -113,8 +113,8 @@ static void test_parser_tls_and_key(void)
     assert(d2k_key_make6(&key, pkt + 8, pkt + 24,
                          pkt + 40, pkt + 42) == 1);
     assert(key.family == D2K_KEY_IPV6);
-    assert(memcmp(key.low_ip6, pkt + 8, 16) == 0);
-    assert(memcmp(key.high_ip6, pkt + 24, 16) == 0);
+    assert(memcmp(key.low_addr.v6.s6_addr, pkt + 8, 16) == 0);
+    assert(memcmp(key.high_addr.v6.s6_addr, pkt + 24, 16) == 0);
     puts("PASS IPv6 parser/TLS SNI/128-bit flow key");
 }
 

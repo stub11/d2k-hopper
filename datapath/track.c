@@ -35,9 +35,9 @@ int d2k_key_make(d2k_key *k, const uint8_t *src_ip4, const uint8_t *dst_ip4,
 
     memset(k, 0, sizeof *k);
     k->family = D2K_KEY_IPV4;
-    memcpy(&k->low_ip, lo, 4);
+    memcpy(&k->low_addr.v4, lo, 4);
     memcpy(&k->low_port, lo + 4, 2);
-    memcpy(&k->high_ip, hi, 4);
+    memcpy(&k->high_addr.v4, hi, 4);
     memcpy(&k->high_port, hi + 4, 2);
     return src_is_low;
 }
@@ -90,8 +90,8 @@ int d2k_key_make6(d2k_key *k, const uint8_t *src_ip6, const uint8_t *dst_ip6,
     const uint8_t *hi = src_is_low ? b : a;
     memset(k, 0, sizeof *k);
     k->family = D2K_KEY_IPV6;
-    memcpy(k->low_ip6, lo, 16); memcpy(&k->low_port, lo + 16, 2);
-    memcpy(k->high_ip6, hi, 16); memcpy(&k->high_port, hi + 16, 2);
+    memcpy(&k->low_addr.v6, lo, 16); memcpy(&k->low_port, lo + 16, 2);
+    memcpy(&k->high_addr.v6, hi, 16); memcpy(&k->high_port, hi + 16, 2);
     return src_is_low;
 }
 
