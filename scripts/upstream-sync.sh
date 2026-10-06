@@ -14,6 +14,9 @@ echo "Upstream D2K changed: $state -> $latest"
 report="$(mktemp)"
 trap 'rm -f "$report"' EXIT
 sh scripts/upstream-diff-report.sh "$state" "$latest" > "$report"
+if [ -n "${UPSTREAM_SYNC_REPORT:-}" ]; then
+  cp "$report" "$UPSTREAM_SYNC_REPORT"
+fi
 
 unhandled=""
 safe_count=0
@@ -31,7 +34,7 @@ if [ -n "$unhandled" ]; then
   title="Upstream D2K changes need Hopper adaptation: $latest"
   existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)"
   if [ -z "$existing" ]; then
-    gh issue create --title "$title" --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel
+    if ! gh issue create --title "$title" --body "Upstream branch: https://github.com/necronicle/d2k/tree/feat/telegram-tunnel
 
 Latest revision: $latest
 Last acknowledged Hopper revision: $state
@@ -44,7 +47,9 @@ $(sed -n '1,320p' "$report")
 
 This sync is fail-closed. No unreviewed upstream code was copied and the acknowledged state was not advanced.
 
-Known-safe upstream revisions are allowlisted by exact commit SHA, not by commit title. Add a new SHA only after verifying the concrete diff, Hopper compatibility, and scripts/check.sh."
+Known-safe upstream revisions are allowlisted by exact commit SHA, not by commit title. Add a new SHA only after verifying the concrete diff, Hopper compatibility, and scripts/check.sh."; then
+      echo "Could not create the tracking issue; upstream remains blocked. Diff report: ${UPSTREAM_SYNC_REPORT:-$report}" >&2
+    fi
   else
     echo "Open tracking issue already exists: #$existing"
   fi
@@ -64,8 +69,11 @@ git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
 push_main() {
   git fetch origin main
-  expected="$(git rev-parse origin/main)"
-  git push --force-with-lease="refs/heads/main:$expected" origin HEAD:main
+  if ! git merge-base --is-ancestor origin/main HEAD; then
+    echo "Main advanced during sync; refusing to replace remote history." >&2
+    return 1
+  fi
+  git push origin HEAD:main
 }
 
 if ! git diff --quiet; then

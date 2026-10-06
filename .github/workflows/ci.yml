@@ -100,6 +100,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Upstream sync regression tests
+        run: python3 scripts/test_upstream_sync.py
       - name: shellcheck
         run: |
           sudo apt-get update -qq
